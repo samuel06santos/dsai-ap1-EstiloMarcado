@@ -49,9 +49,26 @@ quando a implementacao for iniciada.
 
 ## Como rodar
 
-Ainda nao ha codigo executavel. As instrucoes completas de instalacao,
-configuracao e execucao serao adicionadas quando a primeira versao da aplicacao
-for implementada.
+Com Docker Desktop em execucao, copie o arquivo de exemplo e inicie os
+servicos:
+
+```powershell
+Copy-Item .env.example .env
+docker compose up --build
+```
+
+Servicos locais disponiveis:
+
+| Servico | URL |
+| --- | --- |
+| Frontend Angular | `http://localhost:4200` |
+| API Spring Boot | `http://localhost:8080` |
+| Saude da API | `http://localhost:8080/actuator/health` |
+| pgAdmin | `http://localhost:5050` |
+| Mailpit | `http://localhost:8025` |
+
+As credenciais locais de PostgreSQL e pgAdmin estao em `.env`. Nao use esses
+valores em producao e nao versione esse arquivo.
 
 ## Desenvolvimento orientado por especificacoes
 

@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: estilo-marcado-api
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/estilo_marcado}
+    username: ${SPRING_DATASOURCE_USERNAME:estilo_marcado}
+    password: ${SPRING_DATASOURCE_PASSWORD:estilo-marcado-dev-2026}
+  jpa:
+    hibernate:
+      ddl-auto: none
+  sql:
+    init:
+      mode: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
