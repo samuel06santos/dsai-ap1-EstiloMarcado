@@ -1,0 +1,94 @@
+# Sistema operacional e editores
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.idea/
+*.iml
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+*.swp
+*.swo
+
+# Variáveis de ambiente e segredos locais
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# Java / Maven / Gradle / Spring Boot
+target/
+out/
+build/
+.gradle/
+bin/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+hs_err_pid*
+replay_pid*
+
+# Relatórios e artefatos de testes Java
+surefire-reports/
+failsafe-reports/
+test-results/
+coverage/
+
+# Angular / Node.js / TypeScript
+node_modules/
+dist/
+out-tsc/
+.angular/
+.cache/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Relatórios e artefatos de testes frontend
+coverage/
+.nyc_output/
+test-results/
+
+# Playwright
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# PostgreSQL e bancos locais
+*.sql.backup
+*.sql.bak
+*.dump
+*.db
+*.sqlite
+*.sqlite3
+postgres-data/
+pgdata/
+
+# Docker e volumes locais
+docker-data/
+docker-volumes/
+
+# Caddy / Nginx: certificados, cache e logs gerados localmente
+caddy_data/
+caddy_config/
+nginx/cache/
+nginx/logs/
+
+# Arquivos temporários
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+tmp/
+temp/
