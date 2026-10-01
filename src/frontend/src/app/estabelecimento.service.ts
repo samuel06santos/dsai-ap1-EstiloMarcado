@@ -31,9 +31,21 @@ export interface Profissional {
 export interface ServicoPublico {
   id: number;
   nome: string;
+  descricao: string | null;
   duracaoMinutos: number;
   preco: number;
+  intervaloMinutos: number | null;
+  ativo: boolean;
   profissionais: { id: number; nome: string; ativo: boolean }[];
+}
+
+export interface ServicoDados {
+  nome: string;
+  descricao: string;
+  duracaoMinutos: number;
+  preco: number;
+  intervaloMinutos: number | null;
+  profissionalIds: number[];
 }
 
 export interface HorarioDisponivel {
@@ -118,6 +130,24 @@ export class EstabelecimentoService {
   servicosDisponiveis(id: number): Observable<ServicoPublico[]> {
     return this.http.get<ServicoPublico[]>(`/api/unidades/${id}/servicos`,
       { params: { somenteDisponiveis: 'true' } });
+  }
+
+  servicosAdministrativos(id: number): Observable<ServicoPublico[]> {
+    return this.http.get<ServicoPublico[]>(`/api/unidades/${id}/servicos`,
+      { params: { somenteDisponiveis: 'false' } });
+  }
+
+  criarServico(id: number, dados: ServicoDados): Observable<ServicoPublico> {
+    return this.mutar(() => this.http.post<ServicoPublico>(`/api/unidades/${id}/servicos`, dados));
+  }
+
+  atualizarServico(id: number, dados: ServicoDados): Observable<ServicoPublico> {
+    return this.mutar(() => this.http.put<ServicoPublico>(`/api/servicos/${id}`, dados));
+  }
+
+  definirServicoAtivo(id: number, ativo: boolean): Observable<ServicoPublico> {
+    return this.mutar(() => this.http.patch<ServicoPublico>(
+      `/api/servicos/${id}/${ativo ? 'ativar' : 'desativar'}`, {}));
   }
 
   horarios(unidadeId: number, servicoId: number, data: string,

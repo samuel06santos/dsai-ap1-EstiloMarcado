@@ -41,9 +41,10 @@ public class ServicoService {
                 .orElseThrow(() -> new RecursoNaoEncontradoException("unidade " + unidadeId + " nao encontrada"));
         if (!unidade.isAtiva()) { throw new AccessDeniedException("filial inativa"); }
 
-        garantirNomeUnico(unidadeId, request.getNome(), null);
+        String nome = normalizarNome(request.getNome());
+        garantirNomeUnico(unidadeId, nome, null);
 
-        Servico servico = new Servico(unidade, request.getNome(), request.getDuracaoMinutos(), request.getPreco());
+        Servico servico = new Servico(unidade, nome, request.getDuracaoMinutos(), request.getPreco());
         travarProfissionais(request.getProfissionalIds());
         aplicar(servico, request);
         servico.setAtivo(true);
@@ -57,9 +58,10 @@ public class ServicoService {
         Servico servico = buscarEntidade(id);
         travarUnidade(servico.getUnidade().getId());
         exigirUnidadeAtiva(servico);
-        garantirNomeUnico(servico.getUnidade().getId(), request.getNome(), id);
+        String nome = normalizarNome(request.getNome());
+        garantirNomeUnico(servico.getUnidade().getId(), nome, id);
 
-        servico.setNome(request.getNome());
+        servico.setNome(nome);
         aplicar(servico, request);
         servico.substituirProfissionais(resolverProfissionais(servico.getUnidade().getId(), request.getProfissionalIds()));
 
@@ -87,16 +89,24 @@ public class ServicoService {
     @Transactional(readOnly = true)
     public ServicoResponse buscar(Long id) {
         Servico servico = buscarEntidade(id);
-        exigirUnidadePublica(servico.getUnidade());
+        return ServicoResponse.from(servico);
+    }
+
+    @Transactional(readOnly = true)
+    public ServicoResponse buscarPublico(Long id) {
+        Servico servico = buscarEntidade(id);
+        if (!agendavel(servico)) {
+            throw new RecursoNaoEncontradoException("servico nao encontrado");
+        }
         return ServicoResponse.fromPublico(servico);
     }
 
     @Transactional(readOnly = true)
     public List<ServicoResponse> listar(Long unidadeId) {
-        exigirUnidadePublica(unidadeRepository.findById(unidadeId)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("filial nao encontrada")));
-        return servicoRepository.findByUnidadeIdOrderByNomeAsc(unidadeId).stream()
-                .map(ServicoResponse::fromPublico)
+        unidadeRepository.findById(unidadeId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("filial nao encontrada"));
+        return servicoRepository.findByUnidadeIdOrderByNomeAscIdAsc(unidadeId).stream()
+                .map(ServicoResponse::from)
                 .toList();
     }
 
@@ -134,15 +144,21 @@ public class ServicoService {
     }
 
     private void garantirNomeUnico(Long unidadeId, String nome, Long idIgnorado) {
-        boolean existe;
-        if (idIgnorado == null) {
-            existe = servicoRepository.existsByUnidadeIdAndNome(unidadeId, nome);
-        } else {
-            existe = servicoRepository.existsByUnidadeIdAndNomeAndIdNot(unidadeId, nome, idIgnorado);
-        }
-        if (existe) {
+        if (servicoRepository.existeNomeEquivalente(unidadeId, nome, idIgnorado)) {
             throw new ConflitoException("ja existe um servico com o nome '" + nome + "' nesta unidade");
         }
+    }
+
+    private String normalizarNome(String nome) {
+        if (nome == null || nome.trim().length() < 2 || nome.trim().length() > 120) {
+            throw new IllegalArgumentException("nome deve ter entre 2 e 120 caracteres");
+        }
+        return nome.trim();
+    }
+
+    private boolean agendavel(Servico servico) {
+        return servico.isAtivo() && servico.getUnidade().isAtiva()
+                && servico.getProfissionais().stream().anyMatch(Profissional::isAtivo);
     }
 
     private Set<Profissional> resolverProfissionais(Long unidadeId, Set<Long> profissionalIds) {

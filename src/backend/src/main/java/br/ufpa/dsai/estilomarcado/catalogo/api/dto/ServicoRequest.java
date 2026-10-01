@@ -18,7 +18,7 @@ import jakarta.validation.constraints.Size;
 public class ServicoRequest {
 
     @NotBlank(message = "nome e obrigatorio")
-    @Size(max = 120, message = "nome deve ter no maximo 120 caracteres")
+    @Size(min = 2, max = 120, message = "nome deve ter entre 2 e 120 caracteres")
     private String nome;
 
     @Size(max = 1000, message = "descricao deve ter no maximo 1000 caracteres")
@@ -36,7 +36,7 @@ public class ServicoRequest {
     @Min(value = 0, message = "intervaloMinutos nao pode ser negativo")
     private Integer intervaloMinutos;
 
-    private Set<Long> profissionalIds = new LinkedHashSet<>();
+    private Set<@NotNull Long> profissionalIds = new LinkedHashSet<>();
 
     public String getNome() {
         return nome;

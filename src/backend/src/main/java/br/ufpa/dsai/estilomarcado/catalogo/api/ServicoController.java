@@ -35,7 +35,10 @@ public class ServicoController {
     @GetMapping("/unidades/{unidadeId}/servicos")
     public List<ServicoResponse> listar(
             @PathVariable Long unidadeId,
-            @RequestParam(name = "somenteDisponiveis", defaultValue = "false") boolean somenteDisponiveis) {
+            @RequestParam(name = "somenteDisponiveis", defaultValue = "true") boolean somenteDisponiveis) {
+        if (!somenteDisponiveis) {
+            usuarioAtual.exigirAdministradorDaUnidade(unidadeId);
+        }
         return somenteDisponiveis
                 ? servicoService.listarDisponiveis(unidadeId)
                 : servicoService.listar(unidadeId);
@@ -51,7 +54,9 @@ public class ServicoController {
 
     @GetMapping("/servicos/{id}")
     public ServicoResponse buscar(@PathVariable Long id) {
-        return servicoService.buscar(id);
+        ServicoResponse servico = servicoService.buscar(id);
+        return usuarioAtual.administraUnidade(servico.getUnidadeId())
+                ? servico : servicoService.buscarPublico(id);
     }
 
     @PutMapping("/servicos/{id}")

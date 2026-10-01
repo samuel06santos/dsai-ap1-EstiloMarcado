@@ -23,4 +23,12 @@ public class UsuarioAtual {
             throw new AccessDeniedException("acesso negado");
         }
     }
+
+    public boolean administraUnidade(Long unidadeId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication != null
+                && authentication.getPrincipal() instanceof UsuarioPrincipal principal
+                && principal.perfil().name().equals("ADMINISTRADOR")
+                && unidadeId.equals(principal.unidadeId());
+    }
 }

@@ -10,11 +10,16 @@ import br.ufpa.dsai.estilomarcado.catalogo.model.Servico;
 
 public interface ServicoRepository extends JpaRepository<Servico, Long> {
 
-    List<Servico> findByUnidadeIdOrderByNomeAsc(Long unidadeId);
+    List<Servico> findByUnidadeIdOrderByNomeAscIdAsc(Long unidadeId);
 
-    boolean existsByUnidadeIdAndNome(Long unidadeId, String nome);
-
-    boolean existsByUnidadeIdAndNomeAndIdNot(Long unidadeId, String nome, Long id);
+    @Query("""
+            select count(s) > 0 from Servico s
+            where s.unidade.id = :unidadeId and lower(trim(s.nome)) = lower(:nome)
+              and (:idIgnorado is null or s.id <> :idIgnorado)
+            """)
+    boolean existeNomeEquivalente(@Param("unidadeId") Long unidadeId,
+                                  @Param("nome") String nome,
+                                  @Param("idIgnorado") Long idIgnorado);
 
     /**
      * Servicos ativos de uma unidade que possuem ao menos um profissional
@@ -28,6 +33,7 @@ public interface ServicoRepository extends JpaRepository<Servico, Long> {
                and s.ativo = true
                and s.unidade.ativa = true
                and exists (select p.id from s.profissionais p where p.ativo = true)
+             order by s.nome, s.id
             """)
     List<Servico> findDisponiveisPorUnidade(@Param("unidadeId") Long unidadeId);
 }

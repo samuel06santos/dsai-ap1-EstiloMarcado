@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from './auth.service';
 import { ConsultaHorarios, Estabelecimento, EstabelecimentoService, Filial, FilialDados,
-  HorarioDisponivel, Profissional, ServicoPublico } from './estabelecimento.service';
+  HorarioDisponivel, Profissional, ServicoDados, ServicoPublico } from './estabelecimento.service';
 import { UiIconComponent } from './ui-icon.component';
 
 @Component({
@@ -113,6 +113,50 @@ import { UiIconComponent } from './ui-icon.component';
           </form>
         }
         </section>
+        <section id="servicos" class="surface-panel section-card">
+          <div class="section-title"><div><p class="eyebrow">Catálogo</p><h2>Serviços</h2></div><app-icon name="scissors" /></div>
+          <p class="muted-copy">Defina o atendimento, o valor e quem pode realizá-lo nesta filial.</p>
+          @if (servicosAdmin().length) {
+            <div class="user-list">
+              @for (servico of servicosAdmin(); track servico.id) {
+                <article>
+                  <div><strong>{{ servico.nome }}</strong>
+                    <small>{{ servico.duracaoMinutos }} min · {{ servico.preco | currency:'BRL' }}
+                      · intervalo {{ servico.intervaloMinutos ?? 0 }} min</small>
+                    <small>{{ servico.profissionais.length ? nomesDoServico(servico) : 'Sem profissionais habilitados' }}</small>
+                    @if (servico.ativo && !temProfissionalAtivo(servico)) {
+                      <small>Não agendável: nenhum profissional ativo habilitado.</small>
+                    }
+                  </div>
+                  <span class="status">{{ servico.ativo ? 'Ativo' : 'Inativo' }}</span>
+                  <button type="button" class="button ghost small" (click)="selecionarServico(servico)" [disabled]="salvando()">Editar</button>
+                  <button type="button" class="button ghost small" (click)="alternarServico(servico)" [disabled]="salvando()">
+                    {{ servico.ativo ? 'Desativar' : 'Ativar' }}</button>
+                </article>
+              }
+            </div>
+          } @else { <p class="muted-copy" role="status">Nenhum serviço cadastrado. Cadastre o primeiro abaixo.</p> }
+          <form class="edit-panel" (ngSubmit)="salvarServico()" #formServico="ngForm">
+            <h3>{{ servicoEmEdicao() ? 'Editar serviço' : 'Adicionar serviço' }}</h3>
+            <div class="form-grid">
+              <label>Nome<input name="servicoNome" [(ngModel)]="servicoDados.nome" required minlength="2" maxlength="120"></label>
+              <label>Duração (minutos)<input type="number" name="duracao" [(ngModel)]="servicoDados.duracaoMinutos" required min="1" step="1"></label>
+              <label>Preço (R$)<input type="number" name="preco" [(ngModel)]="servicoDados.preco" required min="0" step="0.01"></label>
+              <label>Intervalo após atendimento (minutos)<input type="number" name="intervalo" [(ngModel)]="servicoDados.intervaloMinutos" min="0" step="1"></label>
+            </div>
+            <label>Descrição<textarea name="descricaoServico" [(ngModel)]="servicoDados.descricao" maxlength="1000"></textarea></label>
+            <fieldset><legend>Profissionais habilitados</legend>
+              @for (profissional of profissionais(); track profissional.id) {
+                <label class="checkbox-line"><input type="checkbox" [checked]="servicoDados.profissionalIds.includes(profissional.id)"
+                  (change)="marcarProfissional(profissional.id, $event)">{{ profissional.nome }}{{ profissional.ativo ? '' : ' (inativo)' }}</label>
+              }
+              @if (!profissionais().length) { <p class="muted-copy">Cadastre um profissional antes de oferecer horários.</p> }
+            </fieldset>
+            <div class="form-actions"><button class="button primary" [disabled]="formServico.invalid || salvando()">Salvar serviço</button>
+              @if (servicoEmEdicao()) { <button type="button" class="button ghost" (click)="novoServico()">Cancelar edição</button> }
+            </div>
+          </form>
+        </section>
       }
     </section>
   `
@@ -123,12 +167,15 @@ export class EstabelecimentoAdminComponent implements OnInit {
   readonly filial = signal<Filial | null>(null);
   readonly estabelecimento = signal<Estabelecimento | null>(null);
   readonly profissionais = signal<Profissional[]>([]);
+  readonly servicosAdmin = signal<ServicoPublico[]>([]);
+  readonly servicoEmEdicao = signal<number | null>(null);
   readonly editando = signal<Profissional | null>(null);
   readonly erro = signal(''); readonly mensagem = signal(''); readonly salvando = signal(false);
   filialDados: FilialDados = { nome: '', endereco: '', telefone: '', fusoHorario: 'America/Sao_Paulo' };
   novaFilial: FilialDados = { nome: '', endereco: '', telefone: '', fusoHorario: 'America/Sao_Paulo' };
   nomeEstabelecimento = ''; adminNome = ''; adminEmail = ''; profNome = ''; profApresentacao = '';
   edicaoNome = ''; edicaoApresentacao = '';
+  servicoDados: ServicoDados = this.dadosServicoVazios();
 
   ngOnInit(): void { this.carregar(); }
 
@@ -147,6 +194,7 @@ export class EstabelecimentoAdminComponent implements OnInit {
           }, error: (e) => this.erro.set(AuthService.mensagemErro(e))
         });
         this.recarregarProfissionais(unidadeId);
+        this.recarregarServicos(unidadeId);
       }, error: (e) => this.erro.set(AuthService.mensagemErro(e))
     });
   }
@@ -180,6 +228,7 @@ export class EstabelecimentoAdminComponent implements OnInit {
     this.enviar(() => this.api.criarProfissional(filial.id, this.profNome, this.profApresentacao), () => {
       this.profNome = ''; this.profApresentacao = '';
       this.mensagem.set('Profissional cadastrado.'); this.recarregarProfissionais(filial.id);
+      this.recarregarServicos(filial.id);
     });
   }
 
@@ -188,6 +237,7 @@ export class EstabelecimentoAdminComponent implements OnInit {
     this.enviar(() => this.api.atualizarProfissional(filial.id,
       { ...profissional, ativo: !profissional.ativo }), () => {
       this.mensagem.set('Estado do profissional atualizado.'); this.recarregarProfissionais(filial.id);
+      this.recarregarServicos(filial.id);
     });
   }
 
@@ -204,6 +254,7 @@ export class EstabelecimentoAdminComponent implements OnInit {
       { ...profissional, nome: this.edicaoNome, apresentacao: this.edicaoApresentacao }), () => {
       this.editando.set(null); this.mensagem.set('Profissional atualizado.');
       this.recarregarProfissionais(filial.id);
+      this.recarregarServicos(filial.id);
     });
   }
 
@@ -211,6 +262,64 @@ export class EstabelecimentoAdminComponent implements OnInit {
     this.api.profissionais(id, true).subscribe({
       next: (lista) => this.profissionais.set(lista),
       error: (e) => this.erro.set(AuthService.mensagemErro(e))
+    });
+  }
+
+  private recarregarServicos(id: number): void {
+    this.api.servicosAdministrativos(id).subscribe({
+      next: lista => this.servicosAdmin.set(lista),
+      error: e => this.erro.set(AuthService.mensagemErro(e))
+    });
+  }
+
+  private dadosServicoVazios(): ServicoDados {
+    return { nome: '', descricao: '', duracaoMinutos: 30, preco: 0,
+      intervaloMinutos: null, profissionalIds: [] };
+  }
+
+  novoServico(): void {
+    this.servicoEmEdicao.set(null);
+    this.servicoDados = this.dadosServicoVazios();
+  }
+
+  selecionarServico(servico: ServicoPublico): void {
+    this.servicoEmEdicao.set(servico.id);
+    this.servicoDados = { nome: servico.nome, descricao: servico.descricao ?? '',
+      duracaoMinutos: servico.duracaoMinutos, preco: servico.preco,
+      intervaloMinutos: servico.intervaloMinutos,
+      profissionalIds: servico.profissionais.map(p => p.id) };
+  }
+
+  marcarProfissional(id: number, evento: Event): void {
+    const marcado = (evento.target as HTMLInputElement).checked;
+    this.servicoDados.profissionalIds = marcado
+      ? [...this.servicoDados.profissionalIds, id]
+      : this.servicoDados.profissionalIds.filter(valor => valor !== id);
+  }
+
+  nomesDoServico(servico: ServicoPublico): string {
+    return servico.profissionais.map(p => p.nome).join(', ');
+  }
+
+  temProfissionalAtivo(servico: ServicoPublico): boolean {
+    return servico.profissionais.some(p => p.ativo);
+  }
+
+  salvarServico(): void {
+    const filial = this.filial(); if (!filial) { return; }
+    const id = this.servicoEmEdicao();
+    this.enviar(() => id == null
+      ? this.api.criarServico(filial.id, this.servicoDados)
+      : this.api.atualizarServico(id, this.servicoDados), () => {
+      this.mensagem.set(id == null ? 'Serviço cadastrado.' : 'Serviço atualizado.');
+      this.novoServico(); this.recarregarServicos(filial.id);
+    });
+  }
+
+  alternarServico(servico: ServicoPublico): void {
+    const filial = this.filial(); if (!filial) { return; }
+    this.enviar(() => this.api.definirServicoAtivo(servico.id, !servico.ativo), () => {
+      this.mensagem.set('Estado do serviço atualizado.'); this.recarregarServicos(filial.id);
     });
   }
 
@@ -226,7 +335,7 @@ export class EstabelecimentoAdminComponent implements OnInit {
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, UiIconComponent],
+  imports: [CommonModule, FormsModule, RouterLink, UiIconComponent],
   template: `
     <section class="content-card wide public-branch">
       @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
@@ -239,6 +348,14 @@ export class EstabelecimentoAdminComponent implements OnInit {
             <app-icon name="calendar" /></div>
           <p class="muted-copy">Horários exibidos no fuso {{ atual.fusoHorario }}. A escolha ainda não é uma reserva.</p>
           @if (servicos().length) {
+            <div class="user-list">
+              @for (servico of servicos(); track servico.id) {
+                <article><div><strong>{{ servico.nome }}</strong>
+                  @if (servico.descricao) { <small>{{ servico.descricao }}</small> }
+                  <small>{{ servico.duracaoMinutos }} min · {{ servico.preco | currency:'BRL' }}</small>
+                </div></article>
+              }
+            </div>
             <div class="form-grid">
               <label>Serviço
                 <select name="servico" [(ngModel)]="servicoSelecionado" (ngModelChange)="trocarServico()">

@@ -41,6 +41,11 @@ public class GlobalExceptionHandler {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new ErroAgendamentoResponse(409, "HORARIO_INDISPONIVEL", "horario indisponivel", Instant.now()));
         }
+        if (causa instanceof java.sql.SQLException sql && "23505".equals(sql.getSQLState())
+                && causa.getMessage() != null && causa.getMessage().contains("uk_servico_unidade_nome_normalizado")) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(new ErroAgendamentoResponse(409, "SERVICO_DUPLICADO", "nome de servico ja utilizado nesta filial", Instant.now()));
+        }
         throw ex;
     }
 
