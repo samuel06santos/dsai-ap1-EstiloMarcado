@@ -11,10 +11,10 @@ dos atendimentos.
 
 ## Para que serve
 
-O sistema sera usado para que clientes encontrem servicos e horarios
-disponiveis, realizem agendamentos e acompanhem seus proximos atendimentos. Do
-lado do estabelecimento, profissionais e recepcionistas poderao administrar a
-agenda, os horarios de trabalho e a disponibilidade de cada servico.
+O sistema será usado para que clientes encontrem serviços e horários
+disponíveis, realizem agendamentos e acompanhem seus próximos atendimentos. Do
+lado do estabelecimento, profissionais e recepcionistas poderão administrar a
+agenda, os horários de trabalho e a disponibilidade de cada serviço.
 
 ## Principais funcionalidades planejadas
 
@@ -69,6 +69,54 @@ Servicos locais disponiveis:
 
 As credenciais locais de PostgreSQL e pgAdmin estao em `.env`. Nao use esses
 valores em producao e nao versione esse arquivo.
+
+## Seed de dados mock (desenvolvimento)
+
+Depois de subir os containers, popule o banco com dados de exemplo (filiais,
+profissionais, servicos, contas de acesso, clientes vinculados e avulsos,
+jornadas, atendimentos e historico de agendamento):
+
+```powershell
+# Windows / PowerShell
+docker compose up --build -d
+scripts/seed.ps1
+```
+
+```bash
+# Linux / macOS
+docker compose up --build -d
+scripts/seed.sh
+```
+
+A seed cria o estabelecimento **Estilo Marcado (Mock)** e usa a faixa de IDs
+reservada `1000+`, entao nao colide nem sobrescreve dados reais ja existentes.
+Ela e idempotente: pode ser executada varias vezes sem duplicar registros.
+
+Para recriar os dados do zero, use a opcao de reset (apaga todos os dados de
+dominio, mas preserva as migracoes do Flyway):
+
+```powershell
+scripts/seed.ps1 -Reset
+```
+
+```bash
+scripts/seed.sh --reset
+```
+
+Contas mock criadas (senha unica: `Estilo@2026`):
+
+| E-mail | Perfil |
+| --- | --- |
+| `admin@estilomarcado.dev` | ADMINISTRADOR (Unidade Centro) |
+| `recepcao@estilomarcado.dev` | RECEPCAO (Unidade Centro) |
+| `admin.batista@estilomarcado.dev` | ADMINISTRADOR (Unidade Batista Campos) |
+| `ana.souza@estilomarcado.dev` | PROFISSIONAL (Ana Souza) |
+| `carlos.lima@estilomarcado.dev` | PROFISSIONAL (Carlos Lima) |
+| `beatriz.rocha@estilomarcado.dev` | PROFISSIONAL (Beatriz Rocha) |
+| `diego.mendes@estilomarcado.dev` | PROFISSIONAL (Diego Mendes) |
+| `cliente@estilomarcado.dev` | CLIENTE |
+| `joao.pereira@estilomarcado.dev` | CLIENTE |
+| `maria.oliveira@estilomarcado.dev` | CLIENTE |
 
 ## Desenvolvimento orientado por especificacoes
 
