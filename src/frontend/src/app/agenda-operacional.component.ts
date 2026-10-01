@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { Agendamento, AgendamentoApi } from './agendamento.service';
 import { AuthService } from './auth.service';
 import { EstabelecimentoService, HorarioDisponivel, Profissional, ServicoPublico } from './estabelecimento.service';
@@ -8,7 +9,7 @@ import { UiIconComponent } from './ui-icon.component';
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, UiIconComponent],
+  imports: [CommonModule, FormsModule, RouterLink, UiIconComponent],
   template: `
     <section class="page-stack">
       <div class="page-heading"><p class="eyebrow">Recepção</p><h1>Agenda da filial</h1>
@@ -35,6 +36,7 @@ import { UiIconComponent } from './ui-icon.component';
               <div><strong>{{ item.inicio.slice(11,16) }} · {{ item.servicoNome }}</strong>
                 <small>Cliente #{{ item.clienteId }} · {{ nomeProfissional(item.profissionalId) }}</small>
                 <small>{{ item.status }} · {{ item.precoAcordado | currency:'BRL' }}</small>
+                <a class="text-link" [routerLink]="['/agendamentos', item.id, 'historico']">Ver histórico</a>
               </div>
               @if (item.status !== 'CANCELADO' && item.inicio > agoraLocal(item.fusoHorario)) {
                 <div class="form-actions">

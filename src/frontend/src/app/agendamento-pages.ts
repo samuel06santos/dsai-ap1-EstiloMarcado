@@ -164,6 +164,7 @@ export class RevisaoAgendamentoComponent implements OnInit {
                 @if (item.motivoCancelamento) { <small>Motivo: {{ item.motivoCancelamento }}</small> }
               </div>
               <div class="form-actions">
+                <a class="button ghost" [routerLink]="['/agendamentos', item.id, 'historico']">Histórico</a>
                 @if (item.status !== 'CANCELADO' && item.inicio > agoraLocal(item.fusoHorario)) {
                   <button class="button ghost" type="button" [disabled]="enviando()"
                     (click)="iniciarReagendamento(item)">Reagendar</button>

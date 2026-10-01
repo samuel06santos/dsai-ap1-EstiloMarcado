@@ -11,6 +11,8 @@ import { AgendaProfissionalComponent, MinhaFilialComponent } from './app/workspa
 import { AdministracaoAgendaComponent, MinhaDisponibilidadeComponent } from './app/disponibilidade-pages';
 import { MeusAgendamentosComponent, RevisaoAgendamentoComponent } from './app/agendamento-pages';
 import { AgendaOperacionalComponent } from './app/agenda-operacional.component';
+import { FilaEquipeComponent, HistoricoAgendamentoComponent, ListaEsperaComponent, NotificacoesComponent,
+  RelatorioOperacionalComponent } from './app/operacao-pages';
 
 const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -22,6 +24,13 @@ const routes: Routes = [
   { path: 'convite', component: NovaSenhaComponent, data: { convite: true } },
   { path: 'conta', component: ContaComponent, canActivate: [autenticadoGuard] },
   { path: 'meus-agendamentos', component: MeusAgendamentosComponent, canActivate: [autenticadoGuard] },
+  { path: 'lista-espera', component: ListaEsperaComponent, canActivate: [autenticadoGuard] },
+  { path: 'notificacoes', component: NotificacoesComponent, canActivate: [autenticadoGuard] },
+  { path: 'agendamentos/:id/historico', component: HistoricoAgendamentoComponent,
+    canActivate: [autenticadoGuard] },
+  { path: 'equipe/lista-espera', component: FilaEquipeComponent, canActivate: [equipeGuard] },
+  { path: 'administracao/relatorios', component: RelatorioOperacionalComponent,
+    canActivate: [administradorGuard] },
   { path: 'minha-filial', component: MinhaFilialComponent, canActivate: [internoGuard] },
   { path: 'equipe/agendamentos', component: AgendaOperacionalComponent, canActivate: [equipeGuard] },
   { path: 'profissional/agenda', component: AgendaProfissionalComponent,

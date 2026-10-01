@@ -287,6 +287,11 @@ export class EstabelecimentoAdminComponent implements OnInit {
               } @else {
                 <p class="muted-copy" role="status">Não há horários livres nessa data. Tente outro dia ou profissional.</p>
               }
+              <a class="button ghost" routerLink="/lista-espera"
+                [queryParams]="{ unidadeId: atual.id, servicoId: servicoSelecionado,
+                  profissionalId: profissionalSelecionado, dataInicio: dataSelecionada }">
+                Entrar na lista de espera
+              </a>
             }
           } @else {
             <p class="muted-copy">Esta filial ainda não possui serviços com profissionais habilitados.</p>

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, HostListener, ViewChild,
   computed, effect, inject, OnInit, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 import { filter, finalize } from 'rxjs';
 import { AuthService, Perfil } from './auth.service';
 import { EstabelecimentoService } from './estabelecimento.service';
@@ -32,6 +33,11 @@ interface NavItem {
       </div>
       @if (auth.sessao(); as sessao) {
         <span class="header-context">{{ nomePerfil(sessao.perfil) }}</span>
+        <a class="icon-button notification-link" routerLink="/notificacoes"
+          [attr.aria-label]="naoLidas() + ' notificações não lidas'">
+          <app-icon name="mail" />
+          @if (naoLidas() > 0) { <span class="notification-count" aria-live="polite">{{ naoLidas() }}</span> }
+        </a>
         <div class="account-area" #accountArea>
           <button #accountTrigger class="avatar-trigger" type="button"
             aria-label="Abrir menu do usuário" aria-haspopup="menu"
@@ -92,6 +98,7 @@ interface NavItem {
 export class AppComponent implements OnInit {
   readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly http = inject(HttpClient);
   private readonly estabelecimento = inject(EstabelecimentoService);
   @ViewChild('accountArea') private accountArea?: ElementRef<HTMLElement>;
   @ViewChild('accountTrigger') private accountTrigger?: ElementRef<HTMLButtonElement>;
@@ -100,6 +107,7 @@ export class AppComponent implements OnInit {
   readonly sidebarAberta = signal(false);
   readonly saindo = signal(false);
   readonly erroSaida = signal('');
+  readonly naoLidas = signal(0);
   readonly urlAtual = signal(this.router.url);
   readonly adminPrincipal = signal(false);
   readonly filialSelecionada = signal<number | null>(null);
@@ -113,24 +121,32 @@ export class AppComponent implements OnInit {
       case 'CLIENTE': return [
         { texto: 'Início', icone: 'home', destino: '/' },
         { texto: 'Meus agendamentos', icone: 'calendar', destino: '/meus-agendamentos' },
+        { texto: 'Lista de espera', icone: 'clock', destino: '/lista-espera' },
+        { texto: 'Notificações', icone: 'mail', destino: '/notificacoes' },
         ...(this.filialSelecionada() ? [{ texto: 'Filial e serviços', icone: 'scissors' as const,
           destino: `/unidades/${this.filialSelecionada()}` }] : []),
         { texto: 'Meu perfil', icone: 'user', destino: '/conta' }
       ];
       case 'PROFISSIONAL': return [
         { texto: 'Minha agenda', icone: 'calendar', destino: '/profissional/agenda' },
+        { texto: 'Notificações', icone: 'mail', destino: '/notificacoes' },
         { texto: 'Minha disponibilidade', icone: 'clock', destino: '/profissional/disponibilidade' },
         { texto: 'Minha filial', icone: 'building', destino: '/minha-filial' },
         { texto: 'Meu perfil', icone: 'user', destino: '/conta' }
       ];
       case 'RECEPCAO': return [
         { texto: 'Agenda da filial', icone: 'calendar', destino: '/equipe/agendamentos' },
+        { texto: 'Fila de espera', icone: 'clock', destino: '/equipe/lista-espera' },
+        { texto: 'Notificações', icone: 'mail', destino: '/notificacoes' },
         { texto: 'Minha filial', icone: 'building', destino: '/minha-filial' },
         { texto: 'Meu perfil', icone: 'user', destino: '/conta' }
       ];
       case 'ADMINISTRADOR': return [
         { texto: 'Visão geral', icone: 'home', destino: '/administracao/estabelecimento' },
         { texto: 'Agendamentos', icone: 'calendar', destino: '/equipe/agendamentos' },
+        { texto: 'Fila e encaixes', icone: 'clock', destino: '/equipe/lista-espera' },
+        { texto: 'Relatórios', icone: 'sparkles', destino: '/administracao/relatorios' },
+        { texto: 'Notificações', icone: 'mail', destino: '/notificacoes' },
         { texto: 'Minha filial', icone: 'building', destino: '/administracao/estabelecimento', fragmento: 'filial' },
         { texto: 'Profissionais', icone: 'scissors', destino: '/administracao/estabelecimento', fragmento: 'profissionais' },
         { texto: 'Equipe', icone: 'users', destino: '/administracao/usuarios' },
@@ -143,6 +159,15 @@ export class AppComponent implements OnInit {
   });
 
   constructor() {
+    effect(onCleanup => {
+      const sessao = this.auth.sessao();
+      this.urlAtual();
+      if (!sessao) { this.naoLidas.set(0); return; }
+      const sub = this.http.get<{ naoLidas: number }>('/api/me/notificacoes/nao-lidas/contagem')
+        .subscribe({ next: dados => this.naoLidas.set(dados.naoLidas),
+          error: () => this.naoLidas.set(0) });
+      onCleanup(() => sub.unsubscribe());
+    });
     this.router.events.pipe(filter(evento => evento instanceof NavigationEnd)).subscribe(evento => {
       this.urlAtual.set(evento.urlAfterRedirects);
       this.menuAberto.set(false);

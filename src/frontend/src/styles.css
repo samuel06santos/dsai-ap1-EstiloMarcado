@@ -139,6 +139,11 @@ h3 { font-size: 1.05rem; }
 .button.primary:hover:not(:disabled) { background: var(--wine-dark); box-shadow: 0 14px 28px rgb(75 29 43 / 27%); transform: translateY(-1px); }
 .button.ghost { color: var(--wine); background: white; }
 .button.ghost:hover:not(:disabled) { color: var(--wine-dark); background: var(--soft); box-shadow: 0 9px 22px rgb(75 29 43 / 12%); transform: translateY(-1px); }
+.notification-link { position: relative; color: var(--wine); cursor: pointer; }
+.notification-link:hover { color: var(--wine-dark); background: var(--soft); box-shadow: 0 6px 16px rgb(75 29 43 / 12%); }
+.notification-count { position: absolute; top: -.35rem; right: -.45rem; min-width: 1.2rem; height: 1.2rem;
+  display: grid; place-items: center; padding: 0 .2rem; border-radius: 999px; background: var(--wine);
+  color: white; font-size: .68rem; font-weight: 800; }
 .button.small { padding: .56rem .78rem; font-size: .8rem; min-height: 38px; }
 .hero-card { min-height: 330px; display: flex; flex-direction: column; justify-content: center; overflow: hidden;
   padding: 2.5rem; border-radius: 1.7rem; background: linear-gradient(135deg, #4b1d2b, #7e3e50);
