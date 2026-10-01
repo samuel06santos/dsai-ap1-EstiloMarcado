@@ -11,7 +11,10 @@ import { AuthService } from './auth.service';
     <header><a class="brand" routerLink="/">Estilo <em>Marcado</em></a><nav>
       @if (auth.sessao(); as sessao) {
         <a routerLink="/conta">Minha conta</a>
-        @if (sessao.perfil === 'ADMINISTRADOR') { <a routerLink="/administracao/usuarios">Equipe</a> }
+        @if (sessao.perfil === 'ADMINISTRADOR') {
+          <a routerLink="/administracao/usuarios">Equipe</a>
+          <a routerLink="/administracao/estabelecimento">Estabelecimento</a>
+        }
         <button class="link-button" (click)="sair()">Sair</button>
       } @else { <a routerLink="/entrar">Entrar</a><a class="nav-cta" routerLink="/cadastro">Criar conta</a> }
     </nav></header>

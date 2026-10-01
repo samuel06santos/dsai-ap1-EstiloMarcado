@@ -26,6 +26,8 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
 
     boolean existsByProfissionalId(Long profissionalId);
 
+    Optional<Usuario> findByProfissionalId(Long profissionalId);
+
     boolean existsByProfissionalIdAndIdNot(Long profissionalId, Long id);
 
     boolean existsByUnidadeIdAndPerfil(Long unidadeId, PerfilUsuario perfil);

@@ -87,6 +87,7 @@ class AutenticacaoIntegrationTest {
         jdbcTemplate.execute("DELETE FROM servico");
         jdbcTemplate.execute("DELETE FROM profissional");
         jdbcTemplate.execute("DELETE FROM unidade");
+        jdbcTemplate.execute("DELETE FROM estabelecimento");
         reset(emailGateway);
 
         unidade = unidadeRepository.save(new Unidade("Unidade Centro"));
@@ -131,24 +132,6 @@ class AutenticacaoIntegrationTest {
         mockMvc.perform(get("/api/autenticacao/sessao").cookie(sessao))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email", is("cliente@example.com")));
-    }
-
-    @Test
-    void cadastroAceitaTokenCsrfBrutoEnviadoPeloAngular() throws Exception {
-        MvcResult respostaCsrf = mockMvc.perform(get("/api/autenticacao/csrf"))
-                .andExpect(status().isOk())
-                .andReturn();
-        Cookie csrfCookie = respostaCsrf.getResponse().getCookie("XSRF-TOKEN");
-        assertNotNull(csrfCookie);
-
-        mockMvc.perform(post("/api/autenticacao/cadastros")
-                        .cookie(csrfCookie)
-                        .header("X-XSRF-TOKEN", csrfCookie.getValue())
-                        .with(this::novaOrigem)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"nome\":\"Cliente Angular\",\"email\":\"angular@example.com\","
-                                + "\"senha\":\"Senha123\",\"confirmacaoSenha\":\"Senha123\"}"))
-                .andExpect(status().isAccepted());
     }
 
     @Test

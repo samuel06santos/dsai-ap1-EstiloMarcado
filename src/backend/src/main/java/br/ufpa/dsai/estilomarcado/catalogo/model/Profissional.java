@@ -1,5 +1,7 @@
 package br.ufpa.dsai.estilomarcado.catalogo.model;
 
+import java.time.Instant;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -8,15 +10,9 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
-/**
- * Profissional habilitado a executar servicos de uma unidade.
- *
- * <p>Representacao minima exigida pelo catalogo de servicos: um profissional
- * pertence a uma unidade e pode estar ativo ou inativo. A spec propria de
- * profissionais expandira esta entidade.</p>
- */
 @Entity
 @Table(name = "profissional")
 public class Profissional {
@@ -30,6 +26,15 @@ public class Profissional {
 
     @Column(nullable = false)
     private boolean ativo = true;
+
+    @Column(length = 500)
+    private String apresentacao;
+
+    @Column(name = "criado_em", nullable = false, updatable = false)
+    private Instant criadoEm = Instant.now();
+
+    @Column(name = "atualizado_em", nullable = false)
+    private Instant atualizadoEm = Instant.now();
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "unidade_id", nullable = false)
@@ -67,4 +72,12 @@ public class Profissional {
     public Unidade getUnidade() {
         return unidade;
     }
+
+    public String getApresentacao() { return apresentacao; }
+    public void setApresentacao(String apresentacao) { this.apresentacao = apresentacao; }
+    public Instant getCriadoEm() { return criadoEm; }
+    public Instant getAtualizadoEm() { return atualizadoEm; }
+
+    @PreUpdate
+    void atualizarInstante() { atualizadoEm = Instant.now(); }
 }

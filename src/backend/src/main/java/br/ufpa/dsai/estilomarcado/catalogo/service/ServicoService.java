@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import br.ufpa.dsai.estilomarcado.catalogo.api.dto.ServicoRequest;
 import br.ufpa.dsai.estilomarcado.catalogo.api.dto.ServicoResponse;
 import br.ufpa.dsai.estilomarcado.catalogo.api.exception.ConflitoException;
+import org.springframework.security.access.AccessDeniedException;
 import br.ufpa.dsai.estilomarcado.catalogo.api.exception.RecursoNaoEncontradoException;
 import br.ufpa.dsai.estilomarcado.catalogo.api.exception.RegraDeNegocioException;
 import br.ufpa.dsai.estilomarcado.catalogo.model.Profissional;
@@ -38,6 +39,7 @@ public class ServicoService {
     public ServicoResponse criar(Long unidadeId, ServicoRequest request) {
         Unidade unidade = unidadeRepository.findById(unidadeId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("unidade " + unidadeId + " nao encontrada"));
+        if (!unidade.isAtiva()) { throw new AccessDeniedException("filial inativa"); }
 
         garantirNomeUnico(unidadeId, request.getNome(), null);
 
@@ -52,6 +54,7 @@ public class ServicoService {
     @Transactional
     public ServicoResponse atualizar(Long id, ServicoRequest request) {
         Servico servico = buscarEntidade(id);
+        exigirUnidadeAtiva(servico);
         garantirNomeUnico(servico.getUnidade().getId(), request.getNome(), id);
 
         servico.setNome(request.getNome());
@@ -64,6 +67,7 @@ public class ServicoService {
     @Transactional
     public ServicoResponse ativar(Long id) {
         Servico servico = buscarEntidade(id);
+        exigirUnidadeAtiva(servico);
         servico.setAtivo(true);
         return ServicoResponse.from(servicoRepository.save(servico));
     }
@@ -71,32 +75,51 @@ public class ServicoService {
     @Transactional
     public ServicoResponse desativar(Long id) {
         Servico servico = buscarEntidade(id);
+        exigirUnidadeAtiva(servico);
         servico.setAtivo(false);
         return ServicoResponse.from(servicoRepository.save(servico));
     }
 
     @Transactional(readOnly = true)
     public ServicoResponse buscar(Long id) {
-        return ServicoResponse.from(buscarEntidade(id));
+        Servico servico = buscarEntidade(id);
+        exigirUnidadePublica(servico.getUnidade());
+        return ServicoResponse.fromPublico(servico);
     }
 
     @Transactional(readOnly = true)
     public List<ServicoResponse> listar(Long unidadeId) {
+        exigirUnidadePublica(unidadeRepository.findById(unidadeId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("filial nao encontrada")));
         return servicoRepository.findByUnidadeIdOrderByNomeAsc(unidadeId).stream()
-                .map(ServicoResponse::from)
+                .map(ServicoResponse::fromPublico)
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public List<ServicoResponse> listarDisponiveis(Long unidadeId) {
+        exigirUnidadePublica(unidadeRepository.findById(unidadeId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("filial nao encontrada")));
         return servicoRepository.findDisponiveisPorUnidade(unidadeId).stream()
-                .map(ServicoResponse::from)
+                .map(ServicoResponse::fromPublico)
                 .toList();
     }
 
     private Servico buscarEntidade(Long id) {
         return servicoRepository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("servico " + id + " nao encontrado"));
+    }
+
+    private void exigirUnidadeAtiva(Servico servico) {
+        if (!servico.getUnidade().isAtiva()) {
+            throw new AccessDeniedException("filial inativa");
+        }
+    }
+
+    private void exigirUnidadePublica(Unidade unidade) {
+        if (!unidade.isAtiva()) {
+            throw new RecursoNaoEncontradoException("filial nao encontrada");
+        }
     }
 
     private void aplicar(Servico servico, ServicoRequest request) {

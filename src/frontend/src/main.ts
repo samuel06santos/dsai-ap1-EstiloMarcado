@@ -6,6 +6,7 @@ import { administradorGuard, autenticadoGuard } from './app/auth.guard';
 import { credentialsInterceptor } from './app/auth.service';
 import { AtivacaoComponent, CadastroComponent, ContaComponent, HomeComponent, LoginComponent,
   NovaSenhaComponent, RecuperacaoComponent, UsuariosAdminComponent } from './app/auth-pages';
+import { EstabelecimentoAdminComponent, FilialPublicaComponent } from './app/estabelecimento-pages';
 
 const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -17,6 +18,9 @@ const routes: Routes = [
   { path: 'convite', component: NovaSenhaComponent, data: { convite: true } },
   { path: 'conta', component: ContaComponent, canActivate: [autenticadoGuard] },
   { path: 'administracao/usuarios', component: UsuariosAdminComponent, canActivate: [administradorGuard] },
+  { path: 'administracao/estabelecimento', component: EstabelecimentoAdminComponent,
+    canActivate: [administradorGuard] },
+  { path: 'unidades/:id', component: FilialPublicaComponent },
   { path: '**', redirectTo: '' }
 ];
 

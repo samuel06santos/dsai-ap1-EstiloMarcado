@@ -26,7 +26,8 @@ public interface ServicoRepository extends JpaRepository<Servico, Long> {
               from Servico s
              where s.unidade.id = :unidadeId
                and s.ativo = true
-               and size(s.profissionais) > 0
+               and s.unidade.ativa = true
+               and exists (select p.id from s.profissionais p where p.ativo = true)
             """)
     List<Servico> findDisponiveisPorUnidade(@Param("unidadeId") Long unidadeId);
 }

@@ -6,8 +6,9 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-import br.ufpa.dsai.estilomarcado.catalogo.model.Unidade;
 import br.ufpa.dsai.estilomarcado.catalogo.repository.UnidadeRepository;
+import br.ufpa.dsai.estilomarcado.catalogo.api.exception.ConflitoException;
+import br.ufpa.dsai.estilomarcado.catalogo.model.Unidade;
 
 @Component
 @ConditionalOnProperty(prefix = "app.auth.bootstrap", name = "enabled", havingValue = "true")
@@ -46,8 +47,12 @@ public class AdministradorBootstrap implements ApplicationRunner {
         if (nomeUnidade == null || nomeUnidade.isBlank()) {
             throw new IllegalArgumentException("bootstrap administrativo exige unidade valida");
         }
-        return unidadeRepository.findByNome(nomeUnidade.trim())
-                .map(Unidade::getId)
-                .orElseGet(() -> unidadeRepository.save(new Unidade(nomeUnidade.trim())).getId());
+        var candidatas = unidadeRepository.findByNomeAndPrincipalTrue(nomeUnidade.trim());
+        if (candidatas.size() > 1) {
+            throw new ConflitoException("bootstrap ambiguo: informe AUTH_BOOTSTRAP_ADMIN_UNIT_ID");
+        }
+        return candidatas.isEmpty()
+                ? unidadeRepository.save(new Unidade(nomeUnidade.trim())).getId()
+                : candidatas.getFirst().getId();
     }
 }

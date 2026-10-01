@@ -76,6 +76,7 @@ class ServicoCatalogIntegrationTest {
         jdbcTemplate.execute("DELETE FROM servico");
         jdbcTemplate.execute("DELETE FROM profissional");
         jdbcTemplate.execute("DELETE FROM unidade");
+        jdbcTemplate.execute("DELETE FROM estabelecimento");
 
         unidade = unidadeRepository.save(new Unidade("Unidade Centro"));
         outraUnidade = unidadeRepository.save(new Unidade("Unidade Norte"));
@@ -192,6 +193,20 @@ class ServicoCatalogIntegrationTest {
         servicoService.criar(unidade.getId(), requestValida());
 
         assertTrue(servicoService.listarDisponiveis(unidade.getId()).isEmpty());
+    }
+
+    @Test
+    void profissionalInativoNaoApareceNoCatalogoPublico() {
+        ServicoRequest request = requestValida();
+        request.setProfissionalIds(Set.of(profA.getId(), profB.getId()));
+        servicoService.criar(unidade.getId(), request);
+
+        profA.setAtivo(false);
+        profissionalRepository.save(profA);
+
+        ServicoResponse publico = servicoService.listarDisponiveis(unidade.getId()).get(0);
+        assertEquals(1, publico.getProfissionais().size());
+        assertEquals(profB.getId(), publico.getProfissionais().get(0).id());
     }
 
     @Test

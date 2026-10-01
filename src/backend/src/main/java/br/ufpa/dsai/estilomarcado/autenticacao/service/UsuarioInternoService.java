@@ -68,6 +68,7 @@ public class UsuarioInternoService {
     @Transactional
     public UsuarioResponse criar(Long unidadeId, UsuarioInternoRequest request, String origem) {
         usuarioAtual.exigirAdministradorDaUnidade(unidadeId);
+        exigirFilialAtiva(unidadeId);
         validarPerfilInterno(request.perfil());
         String normalizado = NormalizadorEmail.normalizar(request.email());
         if (usuarioRepository.existsByEmailNormalizado(normalizado)) {
@@ -90,6 +91,7 @@ public class UsuarioInternoService {
     @Transactional
     public UsuarioResponse atualizar(Long unidadeId, Long id, UsuarioInternoPatchRequest request, String origem) {
         usuarioAtual.exigirAdministradorDaUnidade(unidadeId);
+        exigirFilialAtiva(unidadeId);
         UsuarioPrincipal autor = usuarioAtual.get();
         Usuario usuario = usuarioRepository.findByIdAndUnidadeId(id, unidadeId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("usuario nao encontrado"));
@@ -136,6 +138,7 @@ public class UsuarioInternoService {
     @Transactional
     public void reenviarConvite(Long unidadeId, Long id, String origem) {
         usuarioAtual.exigirAdministradorDaUnidade(unidadeId);
+        exigirFilialAtiva(unidadeId);
         Usuario usuario = usuarioRepository.findByIdAndUnidadeId(id, unidadeId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("usuario nao encontrado"));
         if (usuario.getEstado() != EstadoConta.PENDENTE || usuario.getSenhaHash() != null) {
@@ -168,9 +171,33 @@ public class UsuarioInternoService {
         auditoria.registrar(usuario.getId(), "PRIMEIRO_ADMIN_PROVISIONADO", true, "bootstrap", null);
     }
 
+    @Transactional
+    public void convidarPrimeiroAdministradorNovaFilial(Unidade unidade, String nome,
+                                                         String email, String origem) {
+        String normalizado = NormalizadorEmail.normalizar(email);
+        if (usuarioRepository.existsByEmailNormalizado(normalizado)) {
+            throw new ConflitoException("ja existe uma conta com este e-mail");
+        }
+        Usuario usuario = usuarioRepository.save(new Usuario(
+                nome.trim(), email.trim(), normalizado, null, PerfilUsuario.ADMINISTRADOR,
+                EstadoConta.PENDENTE, unidade, null));
+        String token = tokenService.emitir(usuario, FinalidadeToken.CONVITE, VALIDADE_CONVITE);
+        emailGateway.enviarConvite(usuario.getEmail(), usuario.getNome(), token);
+        auditoria.registrar(usuario.getId(), "PRIMEIRO_ADMIN_PROVISIONADO", true, origem,
+                "unidade=" + unidade.getId());
+    }
+
     private void validarPerfilInterno(PerfilUsuario perfil) {
         if (perfil == null || perfil == PerfilUsuario.CLIENTE) {
             throw new RegraDeNegocioException("perfil de conta interna invalido");
+        }
+    }
+
+    private void exigirFilialAtiva(Long unidadeId) {
+        Unidade unidade = unidadeRepository.findById(unidadeId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("filial nao encontrada"));
+        if (!unidade.isAtiva()) {
+            throw new AccessDeniedException("filial inativa");
         }
     }
 

@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -21,6 +22,12 @@ import br.ufpa.dsai.estilomarcado.autenticacao.exception.TokenInvalidoException;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ErroResponse> handleAutenticacao(AuthenticationException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ErroResponse(HttpStatus.UNAUTHORIZED.value(), "autenticacao necessaria"));
+    }
 
     @ExceptionHandler(CredenciaisInvalidasException.class)
     public ResponseEntity<ErroResponse> handleCredenciais(CredenciaisInvalidasException ex) {
@@ -50,6 +57,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErroResponse> handleJsonInvalido(HttpMessageNotReadableException ex) {
         return ResponseEntity.badRequest()
                 .body(new ErroResponse(HttpStatus.BAD_REQUEST.value(), "requisicao invalida"));
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErroResponse> handleArgumento(IllegalArgumentException ex) {
+        return ResponseEntity.badRequest()
+                .body(new ErroResponse(HttpStatus.BAD_REQUEST.value(), ex.getMessage()));
     }
 
     @ExceptionHandler(RecursoNaoEncontradoException.class)

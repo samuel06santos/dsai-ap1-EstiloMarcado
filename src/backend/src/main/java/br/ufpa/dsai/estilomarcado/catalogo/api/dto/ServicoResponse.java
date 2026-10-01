@@ -40,6 +40,14 @@ public class ServicoResponse {
         return response;
     }
 
+    public static ServicoResponse fromPublico(Servico servico) {
+        ServicoResponse response = from(servico);
+        response.profissionais = response.profissionais.stream()
+                .filter(ProfissionalResumo::ativo)
+                .toList();
+        return response;
+    }
+
     public Long getId() {
         return id;
     }

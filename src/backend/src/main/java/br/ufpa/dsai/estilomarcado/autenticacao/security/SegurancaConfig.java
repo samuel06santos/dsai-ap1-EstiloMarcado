@@ -91,6 +91,9 @@ public class SegurancaConfig {
                         .requestMatchers("/api/autenticacao/**").permitAll()
                         .requestMatchers(HttpMethod.GET,
                                 "/api/unidades/*/servicos", "/api/servicos/*").permitAll()
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/unidades/*/publico", "/api/unidades/*/profissionais",
+                                "/api/unidades/*/profissionais/*").permitAll()
                         .requestMatchers("/api/unidades/*/usuarios-internos/**").hasRole("ADMINISTRADOR")
                         .requestMatchers(HttpMethod.POST, "/api/unidades/*/servicos").hasRole("ADMINISTRADOR")
                         .requestMatchers(HttpMethod.PUT, "/api/servicos/*").hasRole("ADMINISTRADOR")
