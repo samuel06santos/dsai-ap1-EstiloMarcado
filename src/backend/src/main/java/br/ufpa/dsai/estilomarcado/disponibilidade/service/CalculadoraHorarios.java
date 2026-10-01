@@ -45,9 +45,7 @@ public class CalculadoraHorarios {
                 }
                 LocalDateTime fimComIntervalo = fim.plusMinutes(intervaloMinutos);
                 boolean conflito = ocupacoes.stream().anyMatch(ocupacao ->
-                        intersecta(inicio, fim, ocupacao.inicio(), ocupacao.fimOcupado())
-                        || !ocupacao.inicio().isBefore(inicio)
-                        && ocupacao.inicio().isBefore(fimComIntervalo));
+                        intersecta(inicio, fimComIntervalo, ocupacao.inicio(), ocupacao.fimOcupado()));
                 if (!conflito) {
                     resultado.add(inicio);
                 }

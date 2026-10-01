@@ -58,6 +58,20 @@ class CalculadoraHorariosTest {
     }
 
     @Test
+    void comparaPeriodosOcupadosSemiabertosComIntervalosDosDoisLados() {
+        List<JanelaTrabalho> janela = List.of(new JanelaTrabalho(LocalTime.of(9, 0), LocalTime.NOON));
+        assertEquals(List.of(data.atTime(10, 0), data.atTime(10, 15), data.atTime(10, 30),
+                        data.atTime(10, 45), data.atTime(11, 0), data.atTime(11, 15), data.atTime(11, 30)),
+                calcular(data, fuso, antes, janela,
+                        List.of(new Ocupacao(data.atTime(9, 0), 30, 30)), 30, 0));
+        assertEquals(List.of(data.atTime(9, 0), data.atTime(9, 15), data.atTime(9, 30),
+                        data.atTime(9, 45), data.atTime(10, 0), data.atTime(10, 15),
+                        data.atTime(11, 30)),
+                calcular(data, fuso, antes, janela,
+                        List.of(new Ocupacao(data.atTime(11, 0), 30, 0)), 30, 15));
+    }
+
+    @Test
     void excluiInicioPassadoPeloRelogioDaFilial() {
         assertEquals(List.of(data.atTime(10, 15)), calcular(data, fuso,
                 data.atTime(10, 1).atZone(fuso).toInstant(),

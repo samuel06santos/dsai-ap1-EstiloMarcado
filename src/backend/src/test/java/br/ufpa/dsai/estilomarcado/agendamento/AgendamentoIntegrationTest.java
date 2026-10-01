@@ -11,6 +11,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.sql.SQLException;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -29,6 +30,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.DataIntegrityViolationException;
+import br.ufpa.dsai.estilomarcado.catalogo.api.exception.GlobalExceptionHandler;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
@@ -84,6 +87,7 @@ class AgendamentoIntegrationTest {
     @Autowired AtendimentoRepository atendimentos;
     @Autowired ClienteRepository clientes;
     @Autowired DisponibilidadeService disponibilidade;
+    @Autowired GlobalExceptionHandler erros;
     private Unidade unidade;
     private Profissional profissional;
     private Servico servico;
@@ -192,13 +196,22 @@ class AgendamentoIntegrationTest {
     void duasTransacoesConcorrentesReservamApenasUmaVez() throws Exception {
         Usuario outro = usuarios.save(new Usuario("Outro", "outro@test.local", "outro@test.local", "x",
                 PerfilUsuario.CLIENTE, EstadoConta.ATIVA, null, null));
-        var largada = new CountDownLatch(1);
         try (var exec = Executors.newFixedThreadPool(2)) {
-            Future<Boolean> a = exec.submit(() -> disputar(cliente, largada));
-            Future<Boolean> b = exec.submit(() -> disputar(outro, largada));
-            largada.countDown();
-            assertEquals(1, (a.get() ? 1 : 0) + (b.get() ? 1 : 0));
-            assertEquals(1, atendimentos.count());
+            for (int semana = 0; semana < 4; semana++) {
+                LocalDateTime inicio = nove.plusWeeks(semana);
+                var largada = new CountDownLatch(1);
+                Future<Boolean> a = exec.submit(() -> disputar(cliente, largada, inicio));
+                Future<Boolean> b = exec.submit(() -> disputar(outro, largada, inicio));
+                largada.countDown();
+                assertEquals(1, (a.get() ? 1 : 0) + (b.get() ? 1 : 0));
+                assertEquals(semana + 1L, atendimentos.count());
+                assertEquals(semana + 1, jdbc.queryForObject(
+                        "select count(*) from agendamento_evento", Integer.class));
+                assertEquals(semana + 1, jdbc.queryForObject(
+                        "select count(*) from agendamento_idempotencia", Integer.class));
+                assertEquals(clientes.count(), jdbc.queryForObject(
+                        "select count(distinct cliente_id) from atendimento", Long.class));
+            }
         }
     }
 
@@ -225,15 +238,161 @@ class AgendamentoIntegrationTest {
     }
 
     private boolean disputar(Usuario usuario, CountDownLatch largada) throws Exception {
+        return disputar(usuario, largada, nove);
+    }
+
+    private boolean disputar(Usuario usuario, CountDownLatch largada, LocalDateTime inicio) throws Exception {
         autenticar(usuario);
         largada.await();
         try {
-            service.criar(unidade.getId(), pedido(nove), UUID.randomUUID().toString());
+            service.criar(unidade.getId(), pedido(inicio), UUID.randomUUID().toString());
             return true;
         } catch (AgendamentoConflitoException ex) {
             assertEquals("HORARIO_INDISPONIVEL", ex.getCodigo());
             return false;
         } finally { SecurityContextHolder.clearContext(); }
+    }
+
+    @Test
+    void chavesDiferentesNaoPermitemReservaDuplicadaDoMesmoCliente() {
+        autenticar(cliente);
+        service.criar(unidade.getId(), pedido(nove), UUID.randomUUID().toString());
+        assertEquals("HORARIO_INDISPONIVEL", assertThrows(AgendamentoConflitoException.class,
+                () -> service.criar(unidade.getId(), pedido(nove), UUID.randomUUID().toString())).getCodigo());
+        assertEquals(1, atendimentos.count());
+        assertEquals(1, clientes.count());
+        assertEquals(1, jdbc.queryForObject("select count(*) from agendamento_evento", Integer.class));
+        assertEquals(1, jdbc.queryForObject("select count(*) from agendamento_idempotencia", Integer.class));
+    }
+
+    @Test
+    void periodosParciaisAdjacentesEProfissionaisIndependentes() {
+        autenticar(cliente);
+        service.criar(unidade.getId(), pedido(nove), UUID.randomUUID().toString());
+        assertEquals("HORARIO_INDISPONIVEL", assertThrows(AgendamentoConflitoException.class,
+                () -> service.criar(unidade.getId(), pedido(nove.plusMinutes(30)),
+                        UUID.randomUUID().toString())).getCodigo());
+        service.criar(unidade.getId(), pedido(nove.plusMinutes(45)), UUID.randomUUID().toString());
+        Profissional outro = profissionais.save(new Profissional("Bia", unidade));
+        servico.substituirProfissionais(Set.of(profissional, outro));
+        servicos.saveAndFlush(servico);
+        jdbc.update("insert into jornada_intervalo(profissional_id,dia_semana,hora_inicio,hora_fim) "
+                + "values (?,1,'09:00','12:00')", outro.getId());
+        service.criar(unidade.getId(), new Criacao(servico.getId(), outro.getId(), nove,
+                null, null, null), UUID.randomUUID().toString());
+        assertEquals(3, atendimentos.count());
+    }
+
+    @Test
+    void intervaloAposMeiaNoiteBloqueiaDiaSeguinteAteFimExato() {
+        jdbc.update("delete from jornada_intervalo where profissional_id=?", profissional.getId());
+        jdbc.update("insert into jornada_intervalo(profissional_id,dia_semana,hora_inicio,hora_fim) "
+                + "values (?,1,'23:00','23:59'), (?,2,'00:00','02:00')",
+                profissional.getId(), profissional.getId());
+        servico.setIntervaloMinutos(90);
+        servicos.saveAndFlush(servico);
+        autenticar(cliente);
+        LocalDateTime segunda = nove.toLocalDate().atTime(23, 15);
+        service.criar(unidade.getId(), pedido(segunda), UUID.randomUUID().toString());
+        assertEquals("HORARIO_INDISPONIVEL", assertThrows(AgendamentoConflitoException.class,
+                () -> service.criar(unidade.getId(), pedido(segunda.plusHours(1).plusMinutes(15)),
+                        UUID.randomUUID().toString())).getCodigo());
+        service.criar(unidade.getId(), pedido(segunda.plusHours(2)), UUID.randomUUID().toString());
+        assertEquals(2, atendimentos.count());
+    }
+
+    @Test
+    void restricaoDoBancoRejeitaEscritaForaDoServicoETraduzConflito() {
+        autenticar(cliente);
+        var primeiro = service.criar(unidade.getId(), pedido(nove), UUID.randomUUID().toString());
+        DataIntegrityViolationException falha = assertThrows(DataIntegrityViolationException.class,
+                () -> jdbc.update("""
+                        insert into atendimento(profissional_id,servico_id,cliente_id,inicio,status,
+                          duracao_minutos,intervalo_minutos,servico_nome,preco_acordado,
+                          fuso_horario_agendamento)
+                        select profissional_id,servico_id,cliente_id,?,status,duracao_minutos,
+                          intervalo_minutos,servico_nome,preco_acordado,fuso_horario_agendamento
+                        from atendimento where id=?
+                        """, nove.plusMinutes(30), primeiro.id()));
+        assertEquals("23P01", ((SQLException) falha.getMostSpecificCause()).getSQLState());
+        var resposta = erros.handleIntegridade(falha);
+        assertEquals(409, resposta.getStatusCode().value());
+        assertEquals("HORARIO_INDISPONIVEL", resposta.getBody().codigo());
+        assertEquals(1, atendimentos.count());
+    }
+
+    @Test
+    void reagendamentoPerdedorPreservaOrigemECancelamentoLiberaAposCommit() {
+        autenticar(cliente);
+        var origem = service.criar(unidade.getId(), pedido(nove), UUID.randomUUID().toString());
+        var destino = service.criar(unidade.getId(), pedido(nove.plusMinutes(45)),
+                UUID.randomUUID().toString());
+        assertEquals("HORARIO_INDISPONIVEL", assertThrows(AgendamentoConflitoException.class,
+                () -> service.reagendar(origem.id(), destino.inicio())).getCodigo());
+        assertEquals(nove, service.detalhar(origem.id()).inicio());
+        assertEquals(2, jdbc.queryForObject("select count(*) from agendamento_evento", Integer.class));
+        service.cancelar(destino.id(), null);
+        assertEquals(destino.inicio(), service.reagendar(origem.id(), destino.inicio()).inicio());
+        assertEquals(1, jdbc.queryForObject("select count(*) from atendimento "
+                + "where status in ('AGENDADO','CONFIRMADO')", Integer.class));
+    }
+
+    @Test
+    void cancelamentoConcorrenteSoLiberaHorarioAposConfirmacao() throws Exception {
+        autenticar(cliente);
+        var reserva = service.criar(unidade.getId(), pedido(nove), UUID.randomUUID().toString());
+        Usuario outro = usuarios.save(new Usuario("Outro", "outro@test.local", "outro@test.local", "x",
+                PerfilUsuario.CLIENTE, EstadoConta.ATIVA, null, null));
+        var largada = new CountDownLatch(1);
+        try (var exec = Executors.newFixedThreadPool(2)) {
+            Future<Boolean> nova = exec.submit(() -> disputar(outro, largada));
+            Future<?> cancelar = exec.submit(() -> {
+                autenticar(cliente);
+                try {
+                    largada.await();
+                    service.cancelar(reserva.id(), null);
+                } finally { SecurityContextHolder.clearContext(); }
+                return null;
+            });
+            largada.countDown();
+            boolean criou = nova.get();
+            cancelar.get();
+            assertEquals(AtendimentoStatus.CANCELADO, atendimentos.findById(reserva.id()).orElseThrow().getStatus());
+            assertEquals(criou ? 1 : 0, jdbc.queryForObject("select count(*) from atendimento "
+                    + "where status in ('AGENDADO','CONFIRMADO')", Integer.class));
+        }
+    }
+
+    @Test
+    void reagendamentoECriacaoConcorrentesDisputamMesmoDestino() throws Exception {
+        autenticar(cliente);
+        var origem = service.criar(unidade.getId(), pedido(nove), UUID.randomUUID().toString());
+        Usuario outro = usuarios.save(new Usuario("Outro", "outro@test.local", "outro@test.local", "x",
+                PerfilUsuario.CLIENTE, EstadoConta.ATIVA, null, null));
+        LocalDateTime destino = nove.plusHours(1);
+        var largada = new CountDownLatch(1);
+        try (var exec = Executors.newFixedThreadPool(2)) {
+            Future<Boolean> criar = exec.submit(() -> disputar(outro, largada, destino));
+            Future<Boolean> mover = exec.submit(() -> {
+                autenticar(cliente);
+                try {
+                    largada.await();
+                    service.reagendar(origem.id(), destino);
+                    return true;
+                } catch (AgendamentoConflitoException ex) {
+                    assertEquals("HORARIO_INDISPONIVEL", ex.getCodigo());
+                    return false;
+                } finally { SecurityContextHolder.clearContext(); }
+            });
+            largada.countDown();
+            boolean criou = criar.get();
+            boolean moveu = mover.get();
+            assertEquals(1, (criou ? 1 : 0) + (moveu ? 1 : 0));
+            assertEquals(moveu ? destino : nove, atendimentos.findById(origem.id()).orElseThrow().getInicio());
+            assertEquals(criou ? 2 : 1, atendimentos.count());
+            assertEquals(criou ? 2 : 1, jdbc.queryForObject(
+                    "select count(*) from agendamento_idempotencia", Integer.class));
+        }
     }
 
     @Test
