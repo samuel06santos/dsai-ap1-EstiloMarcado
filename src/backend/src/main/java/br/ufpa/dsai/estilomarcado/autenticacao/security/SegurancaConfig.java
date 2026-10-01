@@ -92,6 +92,8 @@ public class SegurancaConfig {
                         .requestMatchers(HttpMethod.GET,
                                 "/api/unidades/*/servicos", "/api/servicos/*").permitAll()
                         .requestMatchers(HttpMethod.GET,
+                                "/api/unidades/*/servicos/*/horarios").permitAll()
+                        .requestMatchers(HttpMethod.GET,
                                 "/api/unidades/*/publico", "/api/unidades/*/profissionais",
                                 "/api/unidades/*/profissionais/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/painel/agenda").hasRole("PROFISSIONAL")

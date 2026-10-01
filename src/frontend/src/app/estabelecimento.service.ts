@@ -28,6 +28,27 @@ export interface Profissional {
   ativo: boolean;
 }
 
+export interface ServicoPublico {
+  id: number;
+  nome: string;
+  duracaoMinutos: number;
+  profissionais: { id: number; nome: string; ativo: boolean }[];
+}
+
+export interface HorarioDisponivel {
+  profissionalId: number;
+  inicio: string;
+  fim: string;
+}
+
+export interface ConsultaHorarios {
+  unidadeId: number;
+  servicoId: number;
+  data: string;
+  fusoHorario: string;
+  horarios: HorarioDisponivel[];
+}
+
 export interface FilialDados {
   nome: string;
   endereco: string;
@@ -93,9 +114,17 @@ export class EstabelecimentoService {
     ));
   }
 
-  servicosDisponiveis(id: number): Observable<{ id: number; nome: string }[]> {
-    return this.http.get<{ id: number; nome: string }[]>(`/api/unidades/${id}/servicos`,
+  servicosDisponiveis(id: number): Observable<ServicoPublico[]> {
+    return this.http.get<ServicoPublico[]>(`/api/unidades/${id}/servicos`,
       { params: { somenteDisponiveis: 'true' } });
+  }
+
+  horarios(unidadeId: number, servicoId: number, data: string,
+           profissionalId?: number): Observable<ConsultaHorarios> {
+    const params: Record<string, string> = { data };
+    if (profissionalId != null) { params['profissionalId'] = String(profissionalId); }
+    return this.http.get<ConsultaHorarios>(
+      `/api/unidades/${unidadeId}/servicos/${servicoId}/horarios`, { params });
   }
 
   private mutar<T>(acao: () => Observable<T>): Observable<T> {

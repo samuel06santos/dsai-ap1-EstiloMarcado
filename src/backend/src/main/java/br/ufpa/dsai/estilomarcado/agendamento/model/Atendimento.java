@@ -47,6 +47,12 @@ public class Atendimento {
     @Column(nullable = false)
     private LocalDateTime inicio;
 
+    @Column(name = "duracao_minutos", nullable = false)
+    private Integer duracaoMinutos;
+
+    @Column(name = "intervalo_minutos", nullable = false)
+    private Integer intervaloMinutos;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private AtendimentoStatus status;
@@ -62,6 +68,8 @@ public class Atendimento {
         this.cliente = cliente;
         this.inicio = inicio;
         this.status = status;
+        this.duracaoMinutos = servico.getDuracaoMinutos();
+        this.intervaloMinutos = servico.getIntervaloMinutos() == null ? 0 : servico.getIntervaloMinutos();
     }
 
     public Long getId() {
@@ -94,5 +102,13 @@ public class Atendimento {
 
     public void setStatus(AtendimentoStatus status) {
         this.status = status;
+    }
+
+    public Integer getDuracaoMinutos() {
+        return duracaoMinutos;
+    }
+
+    public Integer getIntervaloMinutos() {
+        return intervaloMinutos;
     }
 }

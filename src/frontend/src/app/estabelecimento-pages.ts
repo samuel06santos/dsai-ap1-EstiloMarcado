@@ -3,7 +3,8 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from './auth.service';
-import { Estabelecimento, EstabelecimentoService, Filial, FilialDados, Profissional } from './estabelecimento.service';
+import { ConsultaHorarios, Estabelecimento, EstabelecimentoService, Filial, FilialDados,
+  HorarioDisponivel, Profissional, ServicoPublico } from './estabelecimento.service';
 import { UiIconComponent } from './ui-icon.component';
 
 @Component({
@@ -225,22 +226,74 @@ export class EstabelecimentoAdminComponent implements OnInit {
 
 @Component({
   standalone: true,
-  imports: [RouterLink],
+  imports: [FormsModule, RouterLink, UiIconComponent],
   template: `
-    <section class="content-card wide">
+    <section class="content-card wide public-branch">
       @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
       @if (filial(); as atual) {
         <p class="eyebrow">Filial</p><h1>{{ atual.nome }}</h1>
         @if (atual.endereco) { <p>{{ atual.endereco }}</p> }
         @if (atual.telefone) { <p>Telefone: {{ atual.telefone }}</p> }
-        <h2>Profissionais</h2>
-        <div class="user-list">@for (profissional of profissionais(); track profissional.id) {
-          <article><div><strong>{{ profissional.nome }}</strong><small>{{ profissional.apresentacao }}</small></div></article>
-        }</div>
-        <h2>Serviços disponíveis</h2>
-        <div class="user-list">@for (servico of servicos(); track servico.id) {
-          <article><strong>{{ servico.nome }}</strong></article>
-        }</div>
+        <section class="surface-panel section-card">
+          <div class="section-title"><div><p class="eyebrow">Agenda</p><h2>Encontre um horário</h2></div>
+            <app-icon name="calendar" /></div>
+          <p class="muted-copy">Horários exibidos no fuso {{ atual.fusoHorario }}. A escolha ainda não é uma reserva.</p>
+          @if (servicos().length) {
+            <div class="form-grid">
+              <label>Serviço
+                <select name="servico" [(ngModel)]="servicoSelecionado" (ngModelChange)="trocarServico()">
+                  @for (servico of servicos(); track servico.id) {
+                    <option [ngValue]="servico.id">{{ servico.nome }} · {{ servico.duracaoMinutos }} min</option>
+                  }
+                </select>
+              </label>
+              <label>Data
+                <input type="date" name="data" [(ngModel)]="dataSelecionada" [min]="dataMinima()"
+                  [max]="dataMaxima()" (change)="consultarHorarios()">
+              </label>
+              <label>Profissional
+                <select name="profissional" [(ngModel)]="profissionalSelecionado"
+                  (ngModelChange)="consultarHorarios()">
+                  <option [ngValue]="null">Qualquer profissional</option>
+                  @for (profissional of profissionaisDoServico(); track profissional.id) {
+                    <option [ngValue]="profissional.id">{{ profissional.nome }}</option>
+                  }
+                </select>
+              </label>
+            </div>
+            <div class="form-actions"><button class="button ghost" type="button"
+              (click)="consultarHorarios()" [disabled]="carregandoHorarios()">Atualizar horários</button></div>
+            @if (erroHorarios()) { <p class="notice error" role="alert">{{ erroHorarios() }}</p> }
+            @if (carregandoHorarios()) { <p role="status">Consultando horários…</p> }
+            @else if (consulta(); as resultado) {
+              @if (resultado.horarios.length) {
+                <div class="slot-grid" aria-label="Horários disponíveis">
+                  @for (horario of resultado.horarios; track horario.inicio + '-' + horario.profissionalId) {
+                    <button type="button" class="slot-option" [class.selected]="selecionado() === horario"
+                      (click)="selecionado.set(horario)"
+                      [attr.aria-pressed]="selecionado() === horario">
+                      <strong>{{ hora(horario.inicio) }}–{{ hora(horario.fim) }}</strong>
+                      <small>{{ nomeProfissional(horario.profissionalId) }}</small>
+                    </button>
+                  }
+                </div>
+                @if (selecionado(); as escolhido) {
+                  <p class="notice success" role="status">Selecionado: {{ hora(escolhido.inicio) }} com
+                    {{ nomeProfissional(escolhido.profissionalId) }}. A reserva será feita em uma etapa futura.</p>
+                }
+              } @else {
+                <p class="muted-copy" role="status">Não há horários livres nessa data. Tente outro dia ou profissional.</p>
+              }
+            }
+          } @else {
+            <p class="muted-copy">Esta filial ainda não possui serviços com profissionais habilitados.</p>
+          }
+        </section>
+        <section class="surface-panel section-card"><h2>Profissionais</h2>
+          <div class="user-list">@for (profissional of profissionais(); track profissional.id) {
+            <article><div><strong>{{ profissional.nome }}</strong><small>{{ profissional.apresentacao }}</small></div></article>
+          }</div>
+        </section>
       }
       <a routerLink="/">Voltar</a>
     </section>
@@ -251,8 +304,16 @@ export class FilialPublicaComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   readonly filial = signal<Filial | null>(null);
   readonly profissionais = signal<Profissional[]>([]);
-  readonly servicos = signal<{ id: number; nome: string }[]>([]);
+  readonly servicos = signal<ServicoPublico[]>([]);
+  readonly consulta = signal<ConsultaHorarios | null>(null);
+  readonly selecionado = signal<HorarioDisponivel | null>(null);
+  readonly carregandoHorarios = signal(false);
+  readonly erroHorarios = signal('');
   readonly erro = signal('');
+  servicoSelecionado: number | null = null;
+  profissionalSelecionado: number | null = null;
+  dataSelecionada = '';
+  private sequenciaConsulta = 0;
 
   ngOnInit(): void {
     const id = Number(this.route.snapshot.paramMap.get('id'));
@@ -260,9 +321,70 @@ export class FilialPublicaComponent implements OnInit {
     this.api.filialPublica(id).subscribe({
       next: (filial) => {
         this.filial.set(filial);
+        this.dataSelecionada = this.dataLocal(filial.fusoHorario);
         this.api.profissionais(id).subscribe((lista) => this.profissionais.set(lista));
-        this.api.servicosDisponiveis(id).subscribe((lista) => this.servicos.set(lista));
+        this.api.servicosDisponiveis(id).subscribe({
+          next: lista => {
+            this.servicos.set(lista);
+            this.servicoSelecionado = lista[0]?.id ?? null;
+            this.consultarHorarios();
+          },
+          error: () => this.erroHorarios.set('Não foi possível carregar os serviços.')
+        });
       }, error: () => this.erro.set('Filial não encontrada.')
     });
+  }
+
+  profissionaisDoServico(): { id: number; nome: string }[] {
+    return this.servicos().find(item => item.id === this.servicoSelecionado)?.profissionais ?? [];
+  }
+
+  trocarServico(): void {
+    this.profissionalSelecionado = null;
+    this.consultarHorarios();
+  }
+
+  consultarHorarios(): void {
+    const filial = this.filial();
+    if (!filial || this.servicoSelecionado == null || !this.dataSelecionada) { return; }
+    const sequencia = ++this.sequenciaConsulta;
+    this.selecionado.set(null);
+    this.consulta.set(null);
+    this.erroHorarios.set('');
+    this.carregandoHorarios.set(true);
+    this.api.horarios(filial.id, this.servicoSelecionado, this.dataSelecionada,
+      this.profissionalSelecionado ?? undefined).subscribe({
+      next: resultado => {
+        if (sequencia !== this.sequenciaConsulta) { return; }
+        this.consulta.set(resultado);
+        this.carregandoHorarios.set(false);
+      },
+      error: erro => {
+        if (sequencia !== this.sequenciaConsulta) { return; }
+        this.erroHorarios.set(AuthService.mensagemErro(erro));
+        this.carregandoHorarios.set(false);
+      }
+    });
+  }
+
+  dataMinima(): string { return this.dataLocal(this.filial()?.fusoHorario ?? 'America/Sao_Paulo'); }
+
+  dataMaxima(): string {
+    const inicio = new Date(`${this.dataMinima()}T12:00:00Z`);
+    inicio.setUTCDate(inicio.getUTCDate() + 60);
+    return inicio.toISOString().slice(0, 10);
+  }
+
+  hora(valor: string): string { return valor.slice(11, 16); }
+
+  nomeProfissional(id: number): string {
+    return this.profissionaisDoServico().find(item => item.id === id)?.nome ?? `Profissional ${id}`;
+  }
+
+  private dataLocal(fuso: string): string {
+    const partes = new Intl.DateTimeFormat('en-US', { timeZone: fuso,
+      year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+    const valor = (tipo: string) => partes.find(item => item.type === tipo)?.value ?? '';
+    return `${valor('year')}-${valor('month')}-${valor('day')}`;
   }
 }

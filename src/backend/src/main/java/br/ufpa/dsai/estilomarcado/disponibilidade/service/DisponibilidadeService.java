@@ -646,7 +646,7 @@ public class DisponibilidadeService {
             return true;
         }
         LocalTime inicio = atendimento.getInicio().toLocalTime();
-        LocalTime fim = inicio.plusMinutes(atendimento.getServico().getDuracaoMinutos());
+        LocalTime fim = inicio.plusMinutes(atendimento.getDuracaoMinutos());
         return inicio.isBefore(bloqueio.horaFim()) && bloqueio.horaInicio().isBefore(fim);
     }
 
@@ -696,7 +696,7 @@ public class DisponibilidadeService {
 
     private boolean cabe(Atendimento atendimento, List<JanelaTrabalho> janelas) {
         LocalTime inicio = atendimento.getInicio().toLocalTime();
-        LocalTime fim = inicio.plusMinutes(atendimento.getServico().getDuracaoMinutos());
+        LocalTime fim = inicio.plusMinutes(atendimento.getDuracaoMinutos());
         return janelas.stream().anyMatch(janela -> janela.contem(inicio, fim));
     }
 

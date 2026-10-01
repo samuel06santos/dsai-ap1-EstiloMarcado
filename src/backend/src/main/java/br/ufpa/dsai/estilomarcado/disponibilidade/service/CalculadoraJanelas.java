@@ -4,6 +4,10 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
@@ -68,6 +72,51 @@ public class CalculadoraJanelas {
                 .map(b -> new JanelaTrabalho(b.getHoraInicio(), b.getHoraFim()))
                 .toList();
         return subtrair(base, recortes);
+    }
+
+    /** Carrega as regras de uma filial/data em lotes para a consulta publica. */
+    public Map<Long, List<JanelaTrabalho>> calcularEmLote(List<Profissional> profissionais, LocalDate data) {
+        if (profissionais.isEmpty()) {
+            return Map.of();
+        }
+        Unidade unidade = profissionais.getFirst().getUnidade();
+        if (!unidade.isAtiva() || feriados.existsByUnidadeIdAndData(unidade.getId(), data)) {
+            return Map.of();
+        }
+        List<Long> ids = profissionais.stream().filter(Profissional::isAtivo)
+                .map(Profissional::getId).toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Set<Long> ausentes = afastamentos
+                .findByProfissionalIdInAndDataInicioLessThanEqualAndDataFimGreaterThanEqual(ids, data, data)
+                .stream().map(item -> item.getProfissional().getId()).collect(Collectors.toSet());
+        Map<Long, ExcecaoJornada> especiais = excecoes.findDoDiaComIntervalos(ids, data).stream()
+                .collect(Collectors.toMap(item -> item.getProfissional().getId(), Function.identity()));
+        Map<Long, List<JanelaTrabalho>> semana = jornadas
+                .findByProfissionalIdInAndDiaSemanaOrderByHoraInicioAsc(ids, data.getDayOfWeek().getValue())
+                .stream().collect(Collectors.groupingBy(item -> item.getProfissional().getId(),
+                        Collectors.mapping(item -> new JanelaTrabalho(item.getHoraInicio(), item.getHoraFim()),
+                                Collectors.toList())));
+        List<BloqueioAgenda> todosBloqueios = bloqueios.findByUnidadeIdAndData(unidade.getId(), data);
+
+        return profissionais.stream().collect(Collectors.toMap(Profissional::getId, profissional -> {
+            Long id = profissional.getId();
+            if (!profissional.isAtivo() || ausentes.contains(id)) {
+                return List.<JanelaTrabalho>of();
+            }
+            List<JanelaTrabalho> base = especiais.containsKey(id)
+                    ? deExcecao(especiais.get(id)) : semana.getOrDefault(id, List.of());
+            List<BloqueioAgenda> doDia = todosBloqueios.stream()
+                    .filter(b -> b.getProfissional() == null || b.getProfissional().getId().equals(id))
+                    .toList();
+            if (doDia.stream().anyMatch(BloqueioAgenda::isDiaInteiro)) {
+                return List.<JanelaTrabalho>of();
+            }
+            List<JanelaTrabalho> recortes = doDia.stream()
+                    .map(b -> new JanelaTrabalho(b.getHoraInicio(), b.getHoraFim())).toList();
+            return subtrair(base, recortes);
+        }));
     }
 
     private List<JanelaTrabalho> base(Profissional profissional, LocalDate data) {

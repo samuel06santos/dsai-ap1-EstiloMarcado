@@ -12,6 +12,9 @@ public interface AfastamentoRepository extends JpaRepository<Afastamento, Long> 
     List<Afastamento> findByProfissionalIdAndDataFimGreaterThanEqualAndDataInicioLessThanEqualOrderByDataInicioAsc(
             Long profissionalId, LocalDate inicio, LocalDate fim);
 
+    List<Afastamento> findByProfissionalIdInAndDataInicioLessThanEqualAndDataFimGreaterThanEqual(
+            List<Long> profissionalIds, LocalDate dataFim, LocalDate dataInicio);
+
     boolean existsByProfissionalIdAndDataInicioLessThanEqualAndDataFimGreaterThanEqual(
             Long profissionalId, LocalDate dataFim, LocalDate dataInicio);
 
