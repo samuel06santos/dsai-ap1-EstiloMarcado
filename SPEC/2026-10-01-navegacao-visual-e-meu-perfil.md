@@ -193,6 +193,73 @@ há fallback `.ico` ou `.png` apenas se a compatibilidade exigir. O título da
 aba permanece “Estilo Marcado”. O avatar usa outro SVG local e consistente com
 o conjunto de ícones.
 
+## Refinamentos de formulários, seleção e espaçamento (2026-10-01)
+
+Esta seção amplia a linguagem visual para tirar do usuário a digitação de
+identificadores e de fusos IANA, dar descrição a cada card e ajustar
+espaçamentos. Vale para as telas já especificadas por outras SPECs
+(estabelecimentos, agendamento, operação/lista de espera e autenticação) como
+convenção de interface, sem mudar regras de negócio, permissões ou contratos,
+exceto o necessário para listar opções.
+
+### Seleção de fuso horário
+
+- Onde hoje se digita um fuso IANA — como o campo "Fuso horário IANA" de
+  "Dados da filial" e o do formulário de nova filial — passa a haver uma lista
+  de seleção (`select`) com os principais fusos. O valor enviado continua sendo
+  o identificador IANA.
+- A lista é curada, não o catálogo completo de fusos IANA, e cobre ao menos os
+  fusos do Brasil: `America/Noronha`, `America/Belem`, `America/Fortaleza`,
+  `America/Recife`, `America/Bahia`, `America/Sao_Paulo`, `America/Cuiaba`,
+  `America/Campo_Grande`, `America/Manaus`, `America/Porto_Velho`,
+  `America/Boa_Vista` e `America/Rio_Branco`.
+- Um valor já persistido que não esteja na lista aparece como opção adicional,
+  para não perder dados existentes. A validação de fuso IANA do backend
+  permanece.
+
+### Seleção de recursos por lista em vez de ID
+
+- Todo campo que hoje espera um identificador numérico (filial, serviço,
+  profissional, cliente) passa a ser uma lista de seleção com o nome legível e o
+  ID como valor.
+- Exemplos desta entrega:
+  - "Lista de espera" do cliente: "Filial", "Serviço" e "Profissional" deixam de
+    ser campos numéricos e viram listas; serviço e profissional são filtrados
+    pela filial escolhida.
+  - "Agendar pela recepção": "Cliente já atendido (ID)" passa a listar os
+    clientes da própria filial; "Ou nome do cliente avulso" continua disponível
+    para cadastrar um cliente sem correspondência.
+- As listas usam as fontes de dados de cada recurso e respeitam o escopo de
+  filial e de proprietário das SPECs de autenticação, estabelecimentos e
+  agendamento: a listagem de clientes de uma filial nunca expõe clientes de
+  outra. Onde não há listagem global — como filiais para um cliente, já que não
+  há diretório/marketplace — o seletor mostra as opções acessíveis no contexto
+  (filial de navegação, filiais com atendimento do cliente), e a SPEC do recurso
+  deve fornecer a listagem correspondente.
+- Campos obrigatórios continuam exigindo uma escolha válida, e listas vazias
+  mostram estado vazio claro (por exemplo, "Nenhum cliente encontrado").
+
+### Descrição dos cards e textos de ajuda
+
+- Cada card/painel tem uma frase curta, logo abaixo do título, explicando para
+  que serve. Cards que hoje não têm descrição — como os de resumo e os
+  formulários de "Lista de espera" e "Agendar pela recepção" — passam a ter.
+- O texto "Encontre os números de filial, serviço e profissional na página da
+  filial." sai do rodapé do card e passa para imediatamente abaixo do título
+  "Criar ou atualizar solicitação". Com os seletores por lista, a redação é
+  ajustada para orientar a escolha (por exemplo, "Escolha a filial para carregar
+  os serviços e profissionais.").
+
+### Espaçamentos
+
+- Em "Agendar pela recepção", adicionar espaçamento vertical entre o botão
+  "Consultar horários" e o bloco seguinte (grade de horários e formulário do
+  cliente).
+- Em "Crie sua conta", adicionar espaçamento entre o bloco "Confira seu e-mail."
+  e o botão "Voltar para o login".
+- O espaçamento usa a escala já existente (`gap` de `1rem` em contêineres em
+  pilha), sem alterar cor ou tipografia.
+
 ## Critérios de aceitação
 
 - Menu e sidebar mostram somente destinos compatíveis com o perfil e vínculo
@@ -216,6 +283,16 @@ o conjunto de ícones.
   cabeçalho ou ID adulterado não permite acessar a agenda de outra pessoa.
 - Hover, foco e estado desabilitado são distintos; ícones têm rótulos ou
   descrição acessível; favicon aparece no desenvolvimento e na produção.
+- Nenhum formulário exige digitar ID numérico ou fuso IANA: filial, serviço,
+  profissional e cliente são escolhidos em listas, e o fuso em uma lista curada.
+- Serviço e profissional são filtrados pela filial escolhida; clientes listados
+  pertencem à filial da sessão e escolhas fora do escopo recebem `404`.
+- Todo card tem uma descrição curta de sua finalidade, e o texto de ajuda
+  aparece imediatamente abaixo de "Criar ou atualizar solicitação".
+- Há espaçamento entre "Consultar horários" e o bloco seguinte em "Agendar pela
+  recepção", e entre "Confira seu e-mail." e "Voltar para o login" em "Crie sua
+  conta".
+- Seletores têm rótulo, foco por teclado e estado vazio claro.
 
 ## Fora do escopo
 
@@ -225,3 +302,6 @@ o conjunto de ícones.
   estabelecimentos.
 - Adicionar novas operações de agenda, serviços ou recepção além de navegação
   e apresentação das funcionalidades já especificadas.
+- Criar um diretório global/marketplace de filiais para alimentar os seletores;
+  novas listagens seguem a SPEC do respectivo recurso e o escopo de
+  filial/proprietário.
