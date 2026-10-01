@@ -19,6 +19,7 @@ import { UiIconComponent } from './ui-icon.component';
       <section class="surface-panel section-card">
         <div class="section-title"><div><p class="eyebrow">Atendimentos</p><h2>Dia selecionado</h2></div>
           <app-icon name="calendar" /></div>
+        <p class="muted-copy">Confirme atendimentos e acompanhe a agenda desta filial no dia escolhido.</p>
         <div class="form-grid">
           <label>Data <input type="date" [(ngModel)]="data" (change)="carregar()"></label>
           <label>Profissional
@@ -75,6 +76,7 @@ import { UiIconComponent } from './ui-icon.component';
       <section class="surface-panel section-card">
         <div class="section-title"><div><p class="eyebrow">Novo</p><h2>Agendar pela recepção</h2></div>
           <app-icon name="clock" /></div>
+        <p class="muted-copy">Escolha serviço, profissional e data para ver os horários livres e criar o agendamento.</p>
         <div class="form-grid">
           <label>Serviço <select [(ngModel)]="servicoId" (change)="trocarServico()">
             @for (s of servicos(); track s.id) { <option [ngValue]="s.id">{{ s.nome }} · {{ s.preco | currency:'BRL' }}</option> }
@@ -84,18 +86,22 @@ import { UiIconComponent } from './ui-icon.component';
           </select></label>
           <label>Data <input type="date" [(ngModel)]="dataCriacao" (change)="consultarCriacao()"></label>
         </div>
-        <button class="button ghost" type="button" (click)="consultarCriacao()">Consultar horários</button>
-        @if (horariosCriacao().length) {
-          <div class="slot-grid">
-            @for (horario of horariosCriacao(); track horario.inicio) {
-              <button class="slot-option" type="button" [class.selected]="inicioEscolhido === horario.inicio"
-                (click)="inicioEscolhido = horario.inicio">{{ horario.inicio.slice(11,16) }}</button>
-            }
-          </div>
-        } @else { <p class="muted-copy">Sem horários livres nessa data.</p> }
+        <div style="display: grid; gap: 1rem; margin: .75rem 0 1rem;">
+          <button class="button ghost" type="button" (click)="consultarCriacao()">Consultar horários</button>
+          @if (horariosCriacao().length) {
+            <div class="slot-grid">
+              @for (horario of horariosCriacao(); track horario.inicio) {
+                <button class="slot-option" type="button" [class.selected]="inicioEscolhido === horario.inicio"
+                  (click)="inicioEscolhido = horario.inicio">{{ horario.inicio.slice(11,16) }}</button>
+              }
+            </div>
+          } @else { <p class="muted-copy">Sem horários livres nessa data.</p> }
+        </div>
         <div class="form-grid">
-          <label>Cliente já atendido (ID) <input type="number" min="1" [(ngModel)]="clienteId"
-            [disabled]="!!clienteNome" placeholder="Opcional"></label>
+          <label>Cliente já atendido<select [(ngModel)]="clienteId" [disabled]="!!clienteNome">
+            <option [ngValue]="null">Selecione</option>
+            @for (c of clientes(); track c.id) { <option [ngValue]="c.id">{{ c.nome }}</option> }
+          </select></label>
           <label>Ou nome do cliente avulso <input [(ngModel)]="clienteNome" [disabled]="!!clienteId"
             minlength="2" maxlength="120" placeholder="Nome completo"></label>
           <label>Telefone do cliente avulso <input [(ngModel)]="clienteTelefone" maxlength="20"
@@ -116,6 +122,7 @@ export class AgendaOperacionalComponent implements OnInit {
   readonly itens = signal<Agendamento[]>([]);
   readonly profissionais = signal<Profissional[]>([]);
   readonly servicos = signal<ServicoPublico[]>([]);
+  readonly clientes = signal<{ id: number; nome: string }[]>([]);
   readonly alternativas = signal<HorarioDisponivel[]>([]);
   readonly horariosCriacao = signal<HorarioDisponivel[]>([]);
   readonly reagendando = signal<Agendamento | null>(null);
@@ -151,6 +158,9 @@ export class AgendaOperacionalComponent implements OnInit {
     this.estabelecimentos.servicosDisponiveis(id).subscribe({
       next: lista => { this.servicos.set(lista); this.servicoId = lista[0]?.id ?? null; this.trocarServico(); },
       error: e => this.erro.set(AuthService.mensagemErro(e))
+    });
+    this.api.clientesDaUnidade(id).subscribe({
+      next: lista => this.clientes.set(lista), error: () => { }
     });
   }
   nomeProfissional(id: number): string {

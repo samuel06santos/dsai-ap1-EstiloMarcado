@@ -13,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 
 import br.ufpa.dsai.estilomarcado.agendamento.model.Atendimento;
 import br.ufpa.dsai.estilomarcado.agendamento.model.AtendimentoStatus;
+import br.ufpa.dsai.estilomarcado.catalogo.model.Unidade;
 
 public interface AtendimentoRepository extends JpaRepository<Atendimento, Long> {
 
@@ -62,6 +63,17 @@ public interface AtendimentoRepository extends JpaRepository<Atendimento, Long> 
              where a.cliente.id = :clienteId
             """)
     List<Atendimento> buscarDoCliente(@Param("clienteId") Long clienteId);
+
+    /**
+     * Filiais distintas em que o cliente autenticado ja teve algum atendimento.
+     * Alimenta o seletor de filial da lista de espera, sem expor filiais com que
+     * o cliente nao tem relacao.
+     */
+    @Query("""
+            select distinct a.profissional.unidade from Atendimento a
+             where a.cliente.usuario.id = :usuarioId
+            """)
+    List<Unidade> filiaisDoCliente(@Param("usuarioId") Long usuarioId);
 
     @Query("""
             select a from Atendimento a where a.profissional.unidade.id = :unidadeId

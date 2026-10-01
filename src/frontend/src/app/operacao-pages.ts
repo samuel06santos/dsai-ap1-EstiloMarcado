@@ -26,6 +26,9 @@ interface PreferenciasNotificacao { lembretes: boolean; avisosLista: boolean; }
 export class OperacaoApi {
   private readonly http = inject(HttpClient);
   privadas(): Observable<Solicitacao[]> { return this.http.get<Solicitacao[]>('/api/me/lista-espera'); }
+  minhasFiliais(): Observable<{ id: number; nome: string; ativa: boolean }[]> {
+    return this.http.get<{ id: number; nome: string; ativa: boolean }[]>('/api/me/filiais');
+  }
   ofertas(id: number): Observable<Oferta[]> { return this.http.get<Oferta[]>(`/api/me/lista-espera/${id}/ofertas`); }
   entrar(unidadeId: number, dados: object): Observable<Solicitacao> {
     return this.mutar(() => this.http.post<Solicitacao>(`/api/unidades/${unidadeId}/lista-espera`, dados));
@@ -83,11 +86,21 @@ export class OperacaoApi {
         <p>Informe quando você pode vir. Um aviso de vaga não bloqueia o horário até a confirmação.</p></header>
       <section class="surface-panel" aria-labelledby="entrar-titulo">
         <h2 id="entrar-titulo">Criar ou atualizar solicitação</h2>
+        <p class="field-help">Escolha a filial para carregar os serviços e profissionais. Se não encontrar a filial desejada, abra primeiro a página dela.</p>
         <form (ngSubmit)="entrar()">
           <div class="form-grid">
-            <label>Filial <input type="number" min="1" required [(ngModel)]="unidadeId" name="unidadeId"></label>
-            <label>Serviço <input type="number" min="1" required [(ngModel)]="servicoId" name="servicoId"></label>
-            <label>Profissional (opcional) <input type="number" min="1" [(ngModel)]="profissionalId" name="profissionalId"></label>
+            <label>Filial<select name="unidadeId" required [(ngModel)]="unidadeId" (ngModelChange)="trocarFilial()">
+              <option [ngValue]="null">Selecione</option>
+              @for (f of filiais(); track f.id) { <option [ngValue]="f.id">{{ f.nome }}</option> }
+            </select></label>
+            <label>Serviço<select name="servicoId" required [(ngModel)]="servicoId" (ngModelChange)="trocarServico()">
+              <option [ngValue]="null">Selecione</option>
+              @for (s of servicos(); track s.id) { <option [ngValue]="s.id">{{ s.nome }}</option> }
+            </select></label>
+            <label>Profissional (opcional)<select name="profissionalId" [(ngModel)]="profissionalId">
+              <option [ngValue]="null">Qualquer</option>
+              @for (p of profissionais(); track p.id) { <option [ngValue]="p.id">{{ p.nome }}</option> }
+            </select></label>
             <label>De <input type="date" required [(ngModel)]="dataInicio" name="dataInicio"></label>
             <label>Até <input type="date" required [(ngModel)]="dataFim" name="dataFim"></label>
             <label>Horário inicial <input type="time" [(ngModel)]="horaInicio" name="horaInicio"></label>
@@ -95,11 +108,11 @@ export class OperacaoApi {
           </div>
           <button class="button primary" type="submit" [disabled]="ocupado()">Salvar preferência</button>
         </form>
-        <p class="field-help">Encontre os números de filial, serviço e profissional na página da filial.</p>
       </section>
       @if (mensagem()) { <p class="notice" role="status">{{ mensagem() }}</p> }
       @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
       <section class="surface-panel"><h2>Minhas solicitações</h2>
+        <p class="muted-copy">Acompanhe suas solicitações, veja ofertas de vaga e cancele quando quiser.</p>
         @if (solicitacoes().length === 0) { <p class="muted-copy">Você ainda não entrou em nenhuma lista.</p> }
         <div class="user-list">
           @for (s of solicitacoes(); track s.id) {
@@ -129,9 +142,13 @@ export class OperacaoApi {
 })
 export class ListaEsperaComponent {
   private readonly api = inject(OperacaoApi);
+  private readonly catalogo = inject(EstabelecimentoService);
   private readonly rota = inject(ActivatedRoute);
   readonly solicitacoes = signal<Solicitacao[]>([]);
   readonly ofertas = signal<Oferta[]>([]);
+  readonly filiais = signal<{ id: number; nome: string }[]>([]);
+  readonly servicos = signal<ServicoPublico[]>([]);
+  readonly profissionais = signal<{ id: number; nome: string }[]>([]);
   readonly mensagem = signal('');
   readonly erro = signal('');
   readonly ocupado = signal(false);
@@ -153,7 +170,45 @@ export class ListaEsperaComponent {
     this.profissionalId = profissional > 0 ? profissional : null;
     this.dataInicio = params.get('dataInicio') ?? '';
     this.dataFim = this.dataInicio;
+    this.carregarFiliais();
+    if (this.unidadeId) { this.trocarFilial(); }
     this.carregar();
+  }
+
+  private carregarFiliais(): void {
+    const opcoes = new Map<number, string>();
+    const aplicar = () => this.filiais.set(
+      [...opcoes].map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome)));
+    if (this.unidadeId) {
+      this.catalogo.filialPublica(this.unidadeId).subscribe({
+        next: filial => { opcoes.set(filial.id, filial.nome); aplicar(); }, error: () => { }
+      });
+    }
+    this.api.minhasFiliais().subscribe({
+      next: lista => { lista.forEach(filial => opcoes.set(filial.id, filial.nome)); aplicar(); },
+      error: () => { }
+    });
+  }
+
+  trocarFilial(): void {
+    this.servicos.set([]);
+    this.profissionais.set([]);
+    if (!this.unidadeId) { this.servicoId = null; this.profissionalId = null; return; }
+    const desejado = this.servicoId;
+    this.catalogo.servicosDisponiveis(this.unidadeId).subscribe({
+      next: dados => {
+        this.servicos.set(dados);
+        this.servicoId = dados.some(s => s.id === desejado) ? desejado : (dados[0]?.id ?? null);
+        this.trocarServico();
+      },
+      error: () => this.erro.set('Não foi possível carregar os serviços desta filial.')
+    });
+  }
+
+  trocarServico(): void {
+    this.profissionalId = null;
+    const servico = this.servicos().find(item => item.id === this.servicoId);
+    this.profissionais.set(servico?.profissionais ?? []);
   }
   carregar(): void { this.api.privadas().subscribe({ next: dados => this.solicitacoes.set(dados),
     error: () => this.erro.set('Não foi possível carregar a lista.') }); }
@@ -191,6 +246,7 @@ export class ListaEsperaComponent {
   template: `<div class="page-stack"><header class="page-heading"><p class="eyebrow">Atualizações</p>
     <h1>Notificações</h1><p>Veja novidades sobre seus agendamentos e ofertas.</p></header>
     <section class="surface-panel"><h2>Preferências</h2>
+      <p class="muted-copy">Escolha quais avisos deseja receber por e-mail.</p>
       <form (ngSubmit)="salvarPreferencias()">
         <label class="checkbox-line"><input type="checkbox" name="lembretes" [(ngModel)]="lembretes">
           Receber lembretes de agendamento</label>
@@ -199,7 +255,9 @@ export class ListaEsperaComponent {
         <button class="button ghost" type="submit">Salvar preferências</button>
       </form>
     </section>
-    <section class="surface-panel"><div class="user-list">
+    <section class="surface-panel"><h2>Suas notificações</h2>
+      <p class="muted-copy">Novidades sobre seus agendamentos e ofertas de vaga.</p>
+      <div class="user-list">
       @for (item of itens(); track item.id) {
         <article><div><strong>{{ item.tipo }}</strong><small>{{ item.criadoEm }} ·
           {{ item.lidoEm ? 'Lida' : 'Não lida' }}</small></div>
@@ -238,7 +296,9 @@ export class NotificacoesComponent {
   providers: [OperacaoApi], changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<div class="page-stack"><header class="page-heading"><p class="eyebrow">Agendamento</p>
     <h1>Histórico #{{ id }}</h1><p>Registro de criação, confirmação, cancelamento e reagendamento.</p></header>
-    <section class="surface-panel"><div class="user-list">
+    <section class="surface-panel"><h2>Linha do tempo</h2>
+      <p class="muted-copy">Eventos deste atendimento, do mais antigo ao mais recente.</p>
+      <div class="user-list">
       @for (evento of eventos(); track evento.id) {
         <article><div><strong>{{ evento.tipo }}</strong><small>{{ evento.ocorridoEm }} ·
           {{ evento.estadoAnterior || 'Novo' }} → {{ evento.estadoNovo }}</small>
@@ -264,7 +324,8 @@ export class HistoricoAgendamentoComponent {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<div class="page-stack"><header class="page-heading"><p class="eyebrow">Operação</p>
     <h1>Fila e encaixes</h1><p>Marque apenas com autorização expressa do cliente.</p></header>
-    <section class="surface-panel"><label>Estado da solicitação
+    <section class="surface-panel"><p class="muted-copy">Solicitações de vaga da sua filial. Filtre por estado para
+      acompanhar quem aguarda atendimento.</p><label>Estado da solicitação
       <select name="status" [(ngModel)]="statusFiltro" (change)="carregar()">
         <option value="">Todos</option><option value="ATIVA">Ativa</option>
         <option value="ATENDIDA">Atendida</option><option value="CANCELADA">Cancelada</option>
@@ -285,6 +346,7 @@ export class HistoricoAgendamentoComponent {
     </div></section>
     @if (ofertasDaSelecionada().length) {
       <section class="surface-panel"><h2>Ofertas da solicitação</h2>
+        <p class="muted-copy">Horários oferecidos ao cliente; a vaga só é reservada após a aceitação.</p>
         @for (o of ofertasDaSelecionada(); track o.id) {
           <p>{{ o.inicio }} ({{ o.fusoHorario }}) · {{ o.status }} · validade {{ o.expiraEm }}</p>
         }
@@ -292,9 +354,12 @@ export class HistoricoAgendamentoComponent {
     }
     @if (selecionada(); as s) {
       <section class="surface-panel"><h2>Encaixe de {{ s.clienteNome }}</h2>
+        <p class="muted-copy">Reserve um horário para este cliente somente com a autorização marcada abaixo.</p>
         <form (ngSubmit)="encaixar(s)"><div class="form-grid">
-          <label>Profissional <input type="number" min="1" name="profissionalId" required
-            [(ngModel)]="profissionalId"></label>
+          <label>Profissional<select name="profissionalId" required [(ngModel)]="profissionalId">
+            <option [ngValue]="null">Selecione</option>
+            @for (p of profissionais(); track p.id) { <option [ngValue]="p.id">{{ p.nome }}</option> }
+          </select></label>
           <label>Início <input type="datetime-local" name="inicio" required [(ngModel)]="inicio"></label>
         </div><label class="checkbox-line"><input type="checkbox" name="autorizada" required
           [(ngModel)]="autorizada"> Cliente autorizou este horário</label>
@@ -308,12 +373,18 @@ export class HistoricoAgendamentoComponent {
 export class FilaEquipeComponent {
   private readonly api = inject(OperacaoApi);
   private readonly auth = inject(AuthService);
+  private readonly catalogo = inject(EstabelecimentoService);
   readonly solicitacoes = signal<Solicitacao[]>([]);
   readonly selecionada = signal<Solicitacao | null>(null);
   readonly ofertasDaSelecionada = signal<Oferta[]>([]);
+  readonly profissionais = signal<Profissional[]>([]);
   readonly mensagem = signal(''); readonly erro = signal('');
   profissionalId: number | null = null; inicio = ''; autorizada = false; statusFiltro = 'ATIVA';
-  constructor() { this.carregar(); }
+  constructor() {
+    const id = this.auth.sessao()?.unidadeId;
+    if (id) { this.catalogo.profissionais(id).subscribe({ next: lista => this.profissionais.set(lista) }); }
+    this.carregar();
+  }
   carregar(): void { const id = this.auth.sessao()?.unidadeId;
     if (id) { this.api.fila(id, this.statusFiltro).subscribe({ next: dados => this.solicitacoes.set(dados),
       error: () => this.erro.set('Não foi possível carregar a fila.') }); } }
@@ -352,7 +423,8 @@ export class FilaEquipeComponent {
     </div><button class="button primary" type="submit">Atualizar relatório</button></form></section>
     @if (carregando()) { <p class="loading-state" role="status">Carregando indicadores…</p> }
     @if (relatorio(); as r) {
-      <section class="surface-panel"><h2>Total do período</h2><p class="muted-copy">Fuso: {{ r.fusoHorario }}</p>
+      <section class="surface-panel"><h2>Total do período</h2>
+        <p class="muted-copy">Indicadores agregados da filial no intervalo escolhido. Fuso: {{ r.fusoHorario }}</p>
         <div class="overview-grid">
           <p>Agendados: <strong>{{ r.total.agendados }}</strong></p>
           <p>Confirmados: <strong>{{ r.total.confirmados }}</strong></p>

@@ -193,6 +193,32 @@ class AgendamentoIntegrationTest {
     }
 
     @Test
+    void listagensDeSelecaoRespeitamEscopo() throws Exception {
+        Cliente registro = new Cliente("Cliente");
+        registro.setUsuario(cliente);
+        registro = clientes.save(registro);
+        atendimentos.save(new Atendimento(profissional, servico, registro, nove, AtendimentoStatus.AGENDADO));
+
+        mvc.perform(get("/api/unidades/" + unidade.getId() + "/clientes")
+                        .with(user(UsuarioPrincipal.from(admin))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].nome").value("Cliente"));
+        mvc.perform(get("/api/unidades/" + unidade.getId() + "/clientes")
+                        .with(user(UsuarioPrincipal.from(cliente))))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/unidades/" + unidade.getId() + "/clientes"))
+                .andExpect(status().isUnauthorized());
+
+        mvc.perform(get("/api/me/filiais").with(user(UsuarioPrincipal.from(cliente))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].nome").value("Centro"));
+        mvc.perform(get("/api/me/filiais").with(user(UsuarioPrincipal.from(admin))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void duasTransacoesConcorrentesReservamApenasUmaVez() throws Exception {
         Usuario outro = usuarios.save(new Usuario("Outro", "outro@test.local", "outro@test.local", "x",
                 PerfilUsuario.CLIENTE, EstadoConta.ATIVA, null, null));

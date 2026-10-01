@@ -27,6 +27,11 @@ export interface Agendamento {
   motivoCancelamento: string | null;
 }
 
+export interface OpcaoCliente {
+  id: number;
+  nome: string;
+}
+
 export interface ResumoPainel {
   proximosAtivos: number;
   realizados: number;
@@ -79,6 +84,10 @@ export class AgendamentoApi {
 
   detalhe(id: number): Observable<Agendamento> {
     return this.http.get<Agendamento>(`/api/agendamentos/${id}`);
+  }
+
+  clientesDaUnidade(unidadeId: number): Observable<OpcaoCliente[]> {
+    return this.http.get<OpcaoCliente[]>(`/api/unidades/${unidadeId}/clientes`);
   }
 
   horariosReagendamento(id: number, data: string): Observable<ConsultaHorarios> {

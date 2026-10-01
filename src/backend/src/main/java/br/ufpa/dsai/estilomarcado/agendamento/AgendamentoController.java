@@ -55,6 +55,18 @@ public class AgendamentoController {
                 .body(service.painel(limiteProximos, limiteHistorico));
     }
 
+    @GetMapping("/api/me/filiais")
+    public ResponseEntity<List<AgendamentoService.FilialOpcao>> minhasFiliais() {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(service.minhasFiliais());
+    }
+
+    @GetMapping("/api/unidades/{unidadeId}/clientes")
+    public ResponseEntity<List<AgendamentoService.ClienteOpcao>> clientes(@PathVariable Long unidadeId) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(service.listarClientesDaUnidade(unidadeId));
+    }
+
     @GetMapping("/api/unidades/{unidadeId}/agendamentos")
     public ResponseEntity<List<Resposta>> unidade(@PathVariable Long unidadeId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate de,

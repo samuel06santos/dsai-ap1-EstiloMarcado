@@ -104,8 +104,10 @@ export class LoginComponent {
     <section class="auth-card wide">
       <p class="eyebrow">Comece agora</p><h1>Crie sua conta</h1>
       @if (sucesso()) {
-        <div class="notice success"><strong>Confira seu e-mail.</strong><br>Enviamos as instrucoes de ativacao caso o endereco esteja disponivel.</div>
-        <a class="button ghost" routerLink="/entrar">Voltar para o login</a>
+        <div style="display: grid; gap: 1.25rem; margin-top: 1rem;">
+          <div class="notice success"><strong>Confira seu e-mail.</strong><br>Enviamos as instrucoes de ativacao caso o endereco esteja disponivel.</div>
+          <a class="button ghost" routerLink="/entrar">Voltar para o login</a>
+        </div>
       } @else {
         <form (ngSubmit)="enviar()" #form="ngForm">
           <label>Nome<input name="nome" [(ngModel)]="nome" required minlength="2" maxlength="120" autocomplete="name"></label>

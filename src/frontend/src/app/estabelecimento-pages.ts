@@ -7,6 +7,23 @@ import { ConsultaHorarios, Estabelecimento, EstabelecimentoService, Filial, Fili
   HorarioDisponivel, Profissional, ServicoDados, ServicoPublico } from './estabelecimento.service';
 import { UiIconComponent } from './ui-icon.component';
 
+interface OpcaoFuso { valor: string; rotulo: string; }
+
+const FUSOS_HORARIOS: OpcaoFuso[] = [
+  { valor: 'America/Noronha', rotulo: 'Fernando de Noronha (UTC-2)' },
+  { valor: 'America/Belem', rotulo: 'Belém (UTC-3)' },
+  { valor: 'America/Fortaleza', rotulo: 'Fortaleza (UTC-3)' },
+  { valor: 'America/Recife', rotulo: 'Recife (UTC-3)' },
+  { valor: 'America/Bahia', rotulo: 'Salvador (UTC-3)' },
+  { valor: 'America/Sao_Paulo', rotulo: 'Brasília / São Paulo (UTC-3)' },
+  { valor: 'America/Cuiaba', rotulo: 'Cuiabá (UTC-4)' },
+  { valor: 'America/Campo_Grande', rotulo: 'Campo Grande (UTC-4)' },
+  { valor: 'America/Manaus', rotulo: 'Manaus (UTC-4)' },
+  { valor: 'America/Porto_Velho', rotulo: 'Porto Velho (UTC-4)' },
+  { valor: 'America/Boa_Vista', rotulo: 'Boa Vista (UTC-4)' },
+  { valor: 'America/Rio_Branco', rotulo: 'Rio Branco (UTC-5)' }
+];
+
 @Component({
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, UiIconComponent],
@@ -38,7 +55,11 @@ import { UiIconComponent } from './ui-icon.component';
               <label>Nome<input name="filialNome" [(ngModel)]="filialDados.nome" required minlength="2" maxlength="120"></label>
               <label>Telefone<input name="telefone" [(ngModel)]="filialDados.telefone" maxlength="30"></label>
               <label>Endereço<input name="endereco" [(ngModel)]="filialDados.endereco" maxlength="250"></label>
-              <label>Fuso horário IANA<input name="fuso" [(ngModel)]="filialDados.fusoHorario" required></label>
+              <label>Fuso horário<select name="fuso" [(ngModel)]="filialDados.fusoHorario" required>
+                @for (opcao of fusosPara(filialDados.fusoHorario); track opcao.valor) {
+                  <option [value]="opcao.valor">{{ opcao.rotulo }}</option>
+                }
+              </select></label>
             </div>
             <label class="checkbox-line"><input type="checkbox" name="ativa" [(ngModel)]="filialDados.ativa">Filial ativa</label>
             <div class="form-actions"><button class="button primary" [disabled]="formFilial.invalid || salvando()">Salvar filial</button></div>
@@ -70,7 +91,11 @@ import { UiIconComponent } from './ui-icon.component';
               <label>Nome da filial<input name="novaFilialNome" [(ngModel)]="novaFilial.nome" required minlength="2" maxlength="120"></label>
               <label>Telefone<input name="novoTelefone" [(ngModel)]="novaFilial.telefone" maxlength="30"></label>
               <label>Endereço<input name="novoEndereco" [(ngModel)]="novaFilial.endereco" maxlength="250"></label>
-              <label>Fuso horário IANA<input name="novoFuso" [(ngModel)]="novaFilial.fusoHorario" required></label>
+              <label>Fuso horário<select name="novoFuso" [(ngModel)]="novaFilial.fusoHorario" required>
+                @for (opcao of fusosPara(novaFilial.fusoHorario); track opcao.valor) {
+                  <option [value]="opcao.valor">{{ opcao.rotulo }}</option>
+                }
+              </select></label>
               <label>Nome do primeiro administrador<input name="adminNome" [(ngModel)]="adminNome" required minlength="2" maxlength="120"></label>
               <label>E-mail do primeiro administrador<input type="email" name="adminEmail" [(ngModel)]="adminEmail" required email></label>
             </div>
@@ -178,6 +203,13 @@ export class EstabelecimentoAdminComponent implements OnInit {
   servicoDados: ServicoDados = this.dadosServicoVazios();
 
   ngOnInit(): void { this.carregar(); }
+
+  fusosPara(valor: string): OpcaoFuso[] {
+    if (valor && !FUSOS_HORARIOS.some(opcao => opcao.valor === valor)) {
+      return [{ valor, rotulo: valor }, ...FUSOS_HORARIOS];
+    }
+    return FUSOS_HORARIOS;
+  }
 
   private carregar(): void {
     const unidadeId = this.auth.sessao()?.unidadeId;

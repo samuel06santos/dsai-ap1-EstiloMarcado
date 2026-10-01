@@ -94,6 +94,8 @@ public class AgendamentoService {
     public record PainelResposta(Instant agora, ClienteResumo cliente, Resposta proximo,
                                  List<Resposta> proximos, List<Resposta> historico,
                                  ResumoPainel resumo) {}
+    public record ClienteOpcao(Long id, String nome) {}
+    public record FilialOpcao(Long id, String nome, boolean ativa) {}
 
     @Transactional
     public Resposta criar(Long unidadeId, Criacao pedido, String chaveTexto) {
@@ -296,6 +298,34 @@ public class AgendamentoService {
         Resposta proximo = proximos.isEmpty() ? null : proximos.get(0);
         return new PainelResposta(agora, dados, proximo, proximos, historico,
                 new ResumoPainel(ativosFuturos.size(), realizados, cancelados));
+    }
+
+    /**
+     * Clientes ja atendidos pela filial, para o seletor da recepcao. A equipe
+     * so enxerga clientes da propria filial.
+     */
+    @Transactional(readOnly = true)
+    public List<ClienteOpcao> listarClientesDaUnidade(Long unidadeId) {
+        exigirEquipe(atual.get(), unidadeId);
+        return clientes.buscarDaUnidade(unidadeId).stream()
+                .map(cliente -> new ClienteOpcao(cliente.getId(), cliente.getNome()))
+                .toList();
+    }
+
+    /**
+     * Filiais em que o cliente autenticado ja teve atendimento, para o seletor
+     * da lista de espera.
+     */
+    @Transactional(readOnly = true)
+    public List<FilialOpcao> minhasFiliais() {
+        UsuarioPrincipal sessao = atual.get();
+        if (sessao.perfil() != PerfilUsuario.CLIENTE) {
+            throw new AccessDeniedException("acesso negado");
+        }
+        return atendimentos.filiaisDoCliente(sessao.id()).stream()
+                .map(unidade -> new FilialOpcao(unidade.getId(), unidade.getNome(), unidade.isAtiva()))
+                .sorted(Comparator.comparing(FilialOpcao::nome))
+                .toList();
     }
 
     private record ItemPainel(Atendimento atendimento, Instant instante, boolean futuro,
