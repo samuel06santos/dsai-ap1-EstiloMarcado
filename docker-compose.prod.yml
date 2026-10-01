@@ -1,0 +1,143 @@
+# Orquestracao de producao do Estilo Marcado.
+#
+# Uso:
+#   docker compose --env-file deploy/.env.production -f docker-compose.prod.yml up -d --build
+#
+# Pontos importantes de seguranca:
+#   - Postgres e backend NAO publicam portas para o host/Internet.
+#   - O frontend publica apenas em loopback (127.0.0.1) para o nginx do host.
+#   - pgAdmin e Mailpit existem somente no ambiente de desenvolvimento.
+
+name: estilo-marcado-prod
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: estilo-marcado-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - interna
+
+  backend:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+    image: estilo-marcado-backend:prod
+    container_name: estilo-marcado-backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+
+      # Atras do nginx do host: confia na cadeia X-Forwarded-* para resolver o
+      # IP real do cliente (rate limit, auditoria) e o esquema HTTPS.
+      SERVER_FORWARD_HEADERS_STRATEGY: native
+
+      FRONTEND_URL: ${FRONTEND_URL}
+      AUTH_ALLOWED_ORIGINS: ${AUTH_ALLOWED_ORIGINS}
+      AUTH_PASSWORD_COST: ${AUTH_PASSWORD_COST:-12}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
+
+      AUTH_BOOTSTRAP_ADMIN_ENABLED: ${AUTH_BOOTSTRAP_ADMIN_ENABLED:-false}
+      AUTH_BOOTSTRAP_ADMIN_NAME: ${AUTH_BOOTSTRAP_ADMIN_NAME:-Administrador}
+      AUTH_BOOTSTRAP_ADMIN_EMAIL: ${AUTH_BOOTSTRAP_ADMIN_EMAIL:-}
+      AUTH_BOOTSTRAP_ADMIN_UNIT_ID: ${AUTH_BOOTSTRAP_ADMIN_UNIT_ID:-0}
+      AUTH_BOOTSTRAP_ADMIN_UNIT_NAME: ${AUTH_BOOTSTRAP_ADMIN_UNIT_NAME:-Unidade Administrativa}
+
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      SPRING_MAIL_USERNAME: ${MAIL_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-true}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: ${MAIL_SMTP_STARTTLS:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 768M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - interna
+
+  frontend:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+    image: estilo-marcado-frontend:prod
+    container_name: estilo-marcado-frontend
+    restart: unless-stopped
+    ports:
+      # Publica apenas no loopback: o unico acesso externo passa pelo nginx do host.
+      - "${FRONTEND_BIND:-127.0.0.1:8081}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - interna
+
+volumes:
+  postgres_data:
+
+networks:
+  interna:
+    driver: bridge

@@ -1,0 +1,33 @@
+# Jails do Estilo Marcado.
+# Instale em /etc/fail2ban/jail.d/estilomarcado.local e reinicie o fail2ban.
+#
+# O banimento ocorre no iptables (chain INPUT), pois todo o trafego publico
+# chega pelo nginx do host; as portas da aplicacao ficam apenas em loopback.
+
+[estilomarcado-scan]
+enabled  = true
+filter   = estilomarcado-scan
+port     = http,https
+logpath  = /var/log/nginx/access.log
+maxretry = 1
+findtime = 1h
+bantime  = 24h
+action   = iptables-allports[name=estilomarcado-scan]
+
+[estilomarcado-probe]
+enabled  = true
+filter   = estilomarcado-probe
+port     = http,https
+logpath  = /var/log/nginx/access.log
+maxretry = 5
+findtime = 10m
+bantime  = 6h
+
+[estilomarcado-auth]
+enabled  = true
+filter   = estilomarcado-auth
+port     = http,https
+logpath  = /var/log/nginx/access.log
+maxretry = 5
+findtime = 10m
+bantime  = 1h
