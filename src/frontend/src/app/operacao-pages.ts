@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Observable, switchMap } from 'rxjs';
 import { AuthService } from './auth.service';
-import { EstabelecimentoService, Profissional, ServicoPublico } from './estabelecimento.service';
+import { EstabelecimentoService, HorarioDisponivel, Profissional, ServicoPublico } from './estabelecimento.service';
 
 interface Solicitacao { id: number; unidadeId: number; servicoId: number; profissionalId: number | null;
   dataInicio: string; dataFim: string; horaInicio: string | null; horaFim: string | null;
@@ -339,7 +339,7 @@ export class HistoricoAgendamentoComponent {
           </small></div>
           <button class="button ghost small" type="button" (click)="verOfertas(s)">Ofertas</button>
           @if (s.status === 'ATIVA') {
-            <button class="button ghost small" type="button" (click)="selecionada.set(s)">Encaixar</button>
+            <button class="button ghost small" type="button" (click)="selecionar(s)">Encaixar</button>
           }
         </article>
       } @empty { <p class="muted-copy">Fila vazia.</p> }
@@ -356,14 +356,32 @@ export class HistoricoAgendamentoComponent {
       <section class="surface-panel"><h2>Encaixe de {{ s.clienteNome }}</h2>
         <p class="muted-copy">Reserve um horário para este cliente somente com a autorização marcada abaixo.</p>
         <form (ngSubmit)="encaixar(s)"><div class="form-grid">
-          <label>Profissional<select name="profissionalId" required [(ngModel)]="profissionalId">
+          <label>Profissional<select name="profissionalId" required [(ngModel)]="profissionalId"
+            (ngModelChange)="consultarHorarios()">
             <option [ngValue]="null">Selecione</option>
-            @for (p of profissionais(); track p.id) { <option [ngValue]="p.id">{{ p.nome }}</option> }
+            @for (p of profissionais(); track p.id) {
+              @if (s.profissionalId === null || s.profissionalId === p.id) {
+                <option [ngValue]="p.id">{{ p.nome }}</option>
+              }
+            }
           </select></label>
-          <label>Início <input type="datetime-local" name="inicio" required [(ngModel)]="inicio"></label>
+          <label>Data <input type="date" name="dataEncaixe" required [(ngModel)]="dataEncaixe"
+            [min]="s.dataInicio" [max]="s.dataFim" (ngModelChange)="consultarHorarios()"></label>
+          <label>Horário disponível<select name="inicio" required [(ngModel)]="inicio"
+            [disabled]="carregandoHorarios() || !horarios().length">
+            <option value="">Selecione</option>
+            @for (h of horarios(); track h.inicio) {
+              <option [value]="h.inicio">{{ h.inicio.slice(11, 16) }}</option>
+            }
+          </select></label>
         </div><label class="checkbox-line"><input type="checkbox" name="autorizada" required
           [(ngModel)]="autorizada"> Cliente autorizou este horário</label>
-          <button class="button primary" type="submit">Confirmar encaixe</button></form>
+          @if (carregandoHorarios()) { <p class="field-help" role="status">Consultando horários…</p> }
+          @else if (horariosConsultados() && !horarios().length) {
+            <p class="field-help">Não há horários disponíveis nesta data para o profissional e a preferência do cliente.</p>
+          }
+          <button class="button primary" type="submit" [disabled]="enviando() || carregandoHorarios() || !inicio">
+            {{ enviando() ? 'Confirmando…' : 'Confirmar encaixe' }}</button></form>
       </section>
     }
     @if (mensagem()) { <p class="notice" role="status">{{ mensagem() }}</p> }
@@ -378,8 +396,14 @@ export class FilaEquipeComponent {
   readonly selecionada = signal<Solicitacao | null>(null);
   readonly ofertasDaSelecionada = signal<Oferta[]>([]);
   readonly profissionais = signal<Profissional[]>([]);
+  readonly horarios = signal<HorarioDisponivel[]>([]);
+  readonly carregandoHorarios = signal(false);
+  readonly horariosConsultados = signal(false);
+  readonly enviando = signal(false);
   readonly mensagem = signal(''); readonly erro = signal('');
-  profissionalId: number | null = null; inicio = ''; autorizada = false; statusFiltro = 'ATIVA';
+  profissionalId: number | null = null; dataEncaixe = ''; inicio = '';
+  autorizada = false; statusFiltro = 'ATIVA';
+  private consultaAtual = 0;
   constructor() {
     const id = this.auth.sessao()?.unidadeId;
     if (id) { this.catalogo.profissionais(id).subscribe({ next: lista => this.profissionais.set(lista) }); }
@@ -392,14 +416,78 @@ export class FilaEquipeComponent {
     next: ofertas => this.ofertasDaSelecionada.set(ofertas),
     error: () => this.erro.set('Não foi possível consultar ofertas.')
   }); }
-  encaixar(s: Solicitacao): void {
-    if (!this.profissionalId || !this.inicio || !this.autorizada) {
-      this.erro.set('Profissional, horário e autorização são obrigatórios.'); return;
+  selecionar(s: Solicitacao): void {
+    this.consultaAtual++;
+    this.selecionada.set(s);
+    this.profissionalId = s.profissionalId;
+    this.dataEncaixe = '';
+    this.inicio = '';
+    this.autorizada = false;
+    this.horarios.set([]);
+    this.horariosConsultados.set(false);
+    this.carregandoHorarios.set(false);
+    this.mensagem.set('');
+    this.erro.set('');
+  }
+  consultarHorarios(): void {
+    const consulta = ++this.consultaAtual;
+    const s = this.selecionada();
+    this.inicio = '';
+    this.horarios.set([]);
+    this.horariosConsultados.set(false);
+    this.carregandoHorarios.set(false);
+    if (!s || !this.profissionalId || !this.dataEncaixe) { return; }
+    if (this.dataEncaixe < s.dataInicio || this.dataEncaixe > s.dataFim) {
+      this.erro.set('Escolha uma data dentro da preferência do cliente.'); return;
     }
+    this.erro.set('');
+    this.carregandoHorarios.set(true);
+    this.catalogo.horarios(s.unidadeId, s.servicoId, this.dataEncaixe, this.profissionalId)
+      .subscribe({
+        next: consultaHorarios => {
+          if (consulta !== this.consultaAtual) { return; }
+          this.horarios.set(consultaHorarios.horarios.filter(h =>
+            h.profissionalId === this.profissionalId
+            && (!s.horaInicio || (h.inicio.slice(11, 16) >= s.horaInicio.slice(0, 5)
+              && h.fim.slice(11, 16) <= (s.horaFim ?? '').slice(0, 5)))));
+          this.horariosConsultados.set(true);
+          this.carregandoHorarios.set(false);
+        },
+        error: () => {
+          if (consulta !== this.consultaAtual) { return; }
+          this.erro.set('Não foi possível consultar os horários. Tente novamente.');
+          this.carregandoHorarios.set(false);
+        }
+      });
+  }
+  encaixar(s: Solicitacao): void {
+    if (this.enviando()) { return; }
+    if (!this.profissionalId || !this.horarios().some(h => h.inicio === this.inicio)
+        || !this.autorizada) {
+      this.erro.set('Selecione um horário disponível e confirme a autorização do cliente.'); return;
+    }
+    this.enviando.set(true);
+    this.erro.set('');
     this.api.encaixar(s.unidadeId, { listaEsperaId: s.id, profissionalId: this.profissionalId,
       inicio: this.inicio, autorizacaoConfirmada: true }).subscribe({
-        next: () => { this.mensagem.set('Encaixe confirmado.'); this.selecionada.set(null); this.carregar(); },
-        error: () => this.erro.set('Horário indisponível ou preferência incompatível.')
+        next: () => {
+          this.enviando.set(false);
+          this.mensagem.set('Encaixe confirmado.'); this.selecionada.set(null); this.carregar();
+        },
+        error: e => {
+          this.enviando.set(false);
+          const codigo = (e as { error?: { codigo?: string } })?.error?.codigo;
+          if (codigo === 'HORARIO_INDISPONIVEL') {
+            this.consultarHorarios();
+            this.erro.set('Este horário deixou de estar disponível. Escolha outro.');
+          } else if (codigo === 'PREFERENCIA_INCOMPATIVEL') {
+            this.erro.set('O horário não atende à preferência do cliente. Escolha outro.');
+          } else if (codigo === 'SOLICITACAO_ENCERRADA') {
+            this.erro.set('Esta solicitação já foi encerrada.'); this.carregar();
+          } else {
+            this.erro.set(AuthService.mensagemErro(e));
+          }
+        }
       });
   }
 }
