@@ -17,10 +17,18 @@ function somarDias(dias: number): string {
   return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`;
 }
 
+function formatarData(data: string): string {
+  const [ano, mes, dia] = data.slice(0, 10).split('-');
+  return `${dia}/${mes}/${ano}`;
+}
+
 @Component({
   standalone: true,
   imports: [FormsModule, UiIconComponent],
   template: `
+    <style>
+      .agenda-item { display: flex; justify-content: space-between; align-items: center; transition: box-shadow .2s ease; }
+    </style>
     <section class="page-stack">
       <div class="page-heading"><p class="eyebrow">Área profissional</p><h1>Minha disponibilidade</h1>
         <p>Defina sua jornada, folgas, afastamentos e bloqueios. Essas regras determinam os horários que podem ser agendados.</p></div>
@@ -92,7 +100,7 @@ function somarDias(dias: number): string {
         <div class="agenda-list">
           @for (excecao of excecoes(); track excecao.id) {
             <article class="agenda-item">
-              <div><h3>{{ excecao.data }} · {{ excecao.tipo === 'FOLGA' ? 'Folga' : 'Jornada especial' }}</h3>
+              <div><h3>{{ formatarData(excecao.data) }} · {{ excecao.tipo === 'FOLGA' ? 'Folga' : 'Jornada especial' }}</h3>
                 <p>{{ excecao.motivo || 'Sem motivo informado' }}</p></div>
               <button type="button" class="button ghost small" (click)="removerExcecao(excecao.id)">Remover</button>
             </article>
@@ -120,7 +128,7 @@ function somarDias(dias: number): string {
         <div class="agenda-list">
           @for (afastamento of afastamentos(); track afastamento.id) {
             <article class="agenda-item">
-              <div><h3>{{ afastamento.dataInicio }} – {{ afastamento.dataFim }}</h3>
+              <div><h3>{{ formatarData(afastamento.dataInicio) }} – {{ formatarData(afastamento.dataFim) }}</h3>
                 <p>{{ rotuloAfastamento(afastamento.tipo) }}{{ afastamento.descricao ? ' · ' + afastamento.descricao : '' }}</p></div>
               <button type="button" class="button ghost small" (click)="removerAfastamento(afastamento.id)">Remover</button>
             </article>
@@ -149,7 +157,7 @@ function somarDias(dias: number): string {
         <div class="agenda-list">
           @for (bloqueio of bloqueios(); track bloqueio.id) {
             <article class="agenda-item">
-              <div><h3>{{ bloqueio.data }} · {{ bloqueio.diaInteiro ? 'Dia inteiro'
+              <div><h3>{{ formatarData(bloqueio.data) }} · {{ bloqueio.diaInteiro ? 'Dia inteiro'
                 : bloqueio.horaInicio!.slice(0, 5) + ' – ' + bloqueio.horaFim!.slice(0, 5) }}</h3>
                 <p>{{ bloqueio.motivo || 'Sem motivo informado' }}</p></div>
               <button type="button" class="button ghost small" (click)="removerBloqueio(bloqueio.id)">Remover</button>
@@ -161,6 +169,7 @@ function somarDias(dias: number): string {
   `
 })
 export class MinhaDisponibilidadeComponent implements OnInit {
+  readonly formatarData = formatarData;
   private readonly svc = inject(DisponibilidadeService);
   private readonly auth = inject(AuthService);
 
@@ -336,11 +345,11 @@ export class MinhaDisponibilidadeComponent implements OnInit {
           </div>
           <div class="form-actions"><button class="button primary" [disabled]="feriadoForm.invalid">Registrar feriado</button></div>
         </form>
-        <div class="agenda-list">
+        <div class="agenda-list" syle="margin-top: 2rem !important;">
           @for (feriado of feriados(); track feriado.id) {
             <article class="agenda-item">
-              <div><h3>{{ feriado.data }}</h3><p>{{ feriado.nome }}</p></div>
-              <button type="button" class="button ghost small" (click)="removerFeriado(feriado.id)">Remover</button>
+              <div><h3>{{ formatarData(feriado.data) }}</h3><p>{{ feriado.nome }}</p></div>
+              <button type="button" class="button ghost small" style="align-self: end; width: max-content; min-width: 0;" (click)="removerFeriado(feriado.id)">Remover</button>
             </article>
           } @empty { <p class="muted-copy">Nenhum feriado cadastrado no período.</p> }
         </div>
@@ -379,6 +388,7 @@ export class MinhaDisponibilidadeComponent implements OnInit {
   `
 })
 export class AdministracaoAgendaComponent implements OnInit {
+  readonly formatarData = formatarData;
   private readonly svc = inject(DisponibilidadeService);
   private readonly auth = inject(AuthService);
 

@@ -224,7 +224,8 @@ textarea { min-height: 6rem; resize: vertical; }
 .icon-button { width: 44px; height: 44px; display: inline-grid; place-items: center; border: 1px solid var(--line); border-radius: .75rem; background: white; color: var(--wine); font-size: 1.5rem; transition: .18s ease; }
 .icon-button:hover:not(:disabled) { color: var(--wine-dark); background: var(--soft); box-shadow: 0 8px 20px rgb(75 29 43 / 12%); }
 .agenda-list { display: grid; }
-.agenda-item { display: grid; grid-template-columns: 90px minmax(0, 1fr) auto; align-items: center; gap: 1.2rem; padding: 1.1rem .2rem; border-bottom: 1px solid var(--line); }
+.agenda-item { display: flex; align-items: center; justify-content: space-between; gap: 1.2rem; padding: 1.1rem .2rem; border-bottom: 1px solid var(--line); transition: box-shadow .2s ease; }
+.agenda-item:hover { box-shadow: 0 6px 18px rgb(0 0 0 / 12%); }
 .agenda-item:last-child { border-bottom: 0; }
 .agenda-item h3, .agenda-item p { margin: 0; }
 .agenda-item p { color: var(--muted); font-size: .88rem; margin-top: .22rem; }
