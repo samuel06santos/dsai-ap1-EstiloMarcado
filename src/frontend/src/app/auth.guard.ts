@@ -37,3 +37,11 @@ export const internoGuard: CanActivateFn = () => {
   };
   return auth.sessao() === undefined ? auth.carregarSessao().pipe(map(decidir)) : of(decidir());
 };
+
+export const equipeGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  const decidir = () => auth.sessao()?.perfil === 'RECEPCAO' || auth.sessao()?.perfil === 'ADMINISTRADOR'
+    ? true : router.createUrlTree([auth.sessao() ? '/' : '/entrar']);
+  return auth.sessao() === undefined ? auth.carregarSessao().pipe(map(decidir)) : of(decidir());
+};

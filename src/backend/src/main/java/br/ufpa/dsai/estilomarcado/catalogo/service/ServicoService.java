@@ -44,6 +44,7 @@ public class ServicoService {
         garantirNomeUnico(unidadeId, request.getNome(), null);
 
         Servico servico = new Servico(unidade, request.getNome(), request.getDuracaoMinutos(), request.getPreco());
+        travarProfissionais(request.getProfissionalIds());
         aplicar(servico, request);
         servico.setAtivo(true);
         servico.substituirProfissionais(resolverProfissionais(unidadeId, request.getProfissionalIds()));
@@ -54,6 +55,7 @@ public class ServicoService {
     @Transactional
     public ServicoResponse atualizar(Long id, ServicoRequest request) {
         Servico servico = buscarEntidade(id);
+        travarUnidade(servico.getUnidade().getId());
         exigirUnidadeAtiva(servico);
         garantirNomeUnico(servico.getUnidade().getId(), request.getNome(), id);
 
@@ -67,6 +69,7 @@ public class ServicoService {
     @Transactional
     public ServicoResponse ativar(Long id) {
         Servico servico = buscarEntidade(id);
+        travarUnidade(servico.getUnidade().getId());
         exigirUnidadeAtiva(servico);
         servico.setAtivo(true);
         return ServicoResponse.from(servicoRepository.save(servico));
@@ -75,6 +78,7 @@ public class ServicoService {
     @Transactional
     public ServicoResponse desativar(Long id) {
         Servico servico = buscarEntidade(id);
+        travarUnidade(servico.getUnidade().getId());
         exigirUnidadeAtiva(servico);
         servico.setAtivo(false);
         return ServicoResponse.from(servicoRepository.save(servico));
@@ -159,5 +163,17 @@ public class ServicoService {
         }
 
         return new LinkedHashSet<>(profissionais);
+    }
+
+    private void travarProfissionais(Set<Long> ids) {
+        if (ids == null) return;
+        ids.stream().sorted().forEach(id -> profissionalRepository.bloquear(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("profissional nao encontrado")));
+    }
+
+    private void travarUnidade(Long unidadeId) {
+        for (Profissional profissional : profissionalRepository.findByUnidadeIdOrderByIdAsc(unidadeId)) {
+            profissionalRepository.bloquear(profissional.getId());
+        }
     }
 }

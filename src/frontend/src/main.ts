@@ -2,13 +2,15 @@ import { bootstrapApplication } from '@angular/platform-browser';
 import { provideHttpClient, withInterceptors, withXsrfConfiguration } from '@angular/common/http';
 import { provideRouter, Routes, withInMemoryScrolling } from '@angular/router';
 import { AppComponent } from './app/app.component';
-import { administradorGuard, autenticadoGuard, internoGuard, profissionalGuard } from './app/auth.guard';
+import { administradorGuard, autenticadoGuard, equipeGuard, internoGuard, profissionalGuard } from './app/auth.guard';
 import { credentialsInterceptor } from './app/auth.service';
 import { AtivacaoComponent, CadastroComponent, ContaComponent, HomeComponent, LoginComponent,
   NovaSenhaComponent, RecuperacaoComponent, UsuariosAdminComponent } from './app/auth-pages';
 import { EstabelecimentoAdminComponent, FilialPublicaComponent } from './app/estabelecimento-pages';
 import { AgendaProfissionalComponent, MinhaFilialComponent } from './app/workspace-pages';
 import { AdministracaoAgendaComponent, MinhaDisponibilidadeComponent } from './app/disponibilidade-pages';
+import { MeusAgendamentosComponent, RevisaoAgendamentoComponent } from './app/agendamento-pages';
+import { AgendaOperacionalComponent } from './app/agenda-operacional.component';
 
 const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -19,7 +21,9 @@ const routes: Routes = [
   { path: 'redefinir-senha', component: NovaSenhaComponent },
   { path: 'convite', component: NovaSenhaComponent, data: { convite: true } },
   { path: 'conta', component: ContaComponent, canActivate: [autenticadoGuard] },
+  { path: 'meus-agendamentos', component: MeusAgendamentosComponent, canActivate: [autenticadoGuard] },
   { path: 'minha-filial', component: MinhaFilialComponent, canActivate: [internoGuard] },
+  { path: 'equipe/agendamentos', component: AgendaOperacionalComponent, canActivate: [equipeGuard] },
   { path: 'profissional/agenda', component: AgendaProfissionalComponent,
     canActivate: [profissionalGuard] },
   { path: 'profissional/disponibilidade', component: MinhaDisponibilidadeComponent,
@@ -29,6 +33,7 @@ const routes: Routes = [
     canActivate: [administradorGuard] },
   { path: 'administracao/estabelecimento', component: EstabelecimentoAdminComponent,
     canActivate: [administradorGuard] },
+  { path: 'unidades/:id/revisar', component: RevisaoAgendamentoComponent },
   { path: 'unidades/:id', component: FilialPublicaComponent },
   { path: '**', redirectTo: '' }
 ];

@@ -19,12 +19,32 @@ import br.ufpa.dsai.estilomarcado.autenticacao.exception.LimiteTentativasExcepti
 import br.ufpa.dsai.estilomarcado.autenticacao.exception.TokenInvalidoException;
 import br.ufpa.dsai.estilomarcado.disponibilidade.exception.ConflitoAtendimentoException;
 import br.ufpa.dsai.estilomarcado.disponibilidade.exception.ItemConflito;
+import br.ufpa.dsai.estilomarcado.agendamento.AgendamentoConflitoException;
+import org.springframework.dao.DataIntegrityViolationException;
 
 /**
  * Traduz excecoes do catalogo de servicos em respostas HTTP consistentes.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(AgendamentoConflitoException.class)
+    public ResponseEntity<ErroAgendamentoResponse> handleAgendamento(AgendamentoConflitoException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErroAgendamentoResponse(409, ex.getCodigo(), ex.getMessage(), Instant.now()));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErroAgendamentoResponse> handleIntegridade(DataIntegrityViolationException ex) {
+        Throwable causa = ex.getMostSpecificCause();
+        if (causa instanceof java.sql.SQLException sql && "23P01".equals(sql.getSQLState())) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(new ErroAgendamentoResponse(409, "HORARIO_INDISPONIVEL", "horario indisponivel", Instant.now()));
+        }
+        throw ex;
+    }
+
+    public record ErroAgendamentoResponse(int status, String codigo, String mensagem, Instant timestamp) {}
 
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ErroResponse> handleAutenticacao(AuthenticationException ex) {

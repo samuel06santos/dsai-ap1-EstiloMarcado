@@ -54,6 +54,7 @@ import br.ufpa.dsai.estilomarcado.disponibilidade.repository.BloqueioAgendaRepos
 import br.ufpa.dsai.estilomarcado.disponibilidade.repository.ExcecaoJornadaRepository;
 import br.ufpa.dsai.estilomarcado.disponibilidade.repository.FeriadoRepository;
 import br.ufpa.dsai.estilomarcado.disponibilidade.repository.JornadaIntervaloRepository;
+import jakarta.persistence.EntityManager;
 
 /**
  * Regras de negocio de jornada semanal, folgas, feriados, afastamentos e
@@ -79,6 +80,19 @@ public class DisponibilidadeService {
     private final CalculadoraJanelas calculadora;
     private final UsuarioAtual usuarioAtual;
     private final AuditoriaService auditoria;
+    private final EntityManager entityManager;
+
+    private void travarProfissional(Profissional profissional) {
+        profissionais.bloquear(profissional.getId())
+                .orElseThrow(() -> new RecursoNaoEncontradoException("profissional nao encontrado"));
+        entityManager.refresh(profissional);
+    }
+
+    private void travarUnidade(Unidade unidade) {
+        for (Profissional profissional : profissionais.findByUnidadeIdOrderByIdAsc(unidade.getId())) {
+            travarProfissional(profissional);
+        }
+    }
 
     public DisponibilidadeService(JornadaIntervaloRepository jornadas,
                                   ExcecaoJornadaRepository excecoes,
@@ -90,7 +104,7 @@ public class DisponibilidadeService {
                                   UnidadeRepository unidades,
                                   CalculadoraJanelas calculadora,
                                   UsuarioAtual usuarioAtual,
-                                  AuditoriaService auditoria) {
+                                  AuditoriaService auditoria, EntityManager entityManager) {
         this.jornadas = jornadas;
         this.excecoes = excecoes;
         this.afastamentos = afastamentos;
@@ -102,6 +116,7 @@ public class DisponibilidadeService {
         this.calculadora = calculadora;
         this.usuarioAtual = usuarioAtual;
         this.auditoria = auditoria;
+        this.entityManager = entityManager;
     }
 
     // ------------------------------------------------------------------
@@ -154,6 +169,7 @@ public class DisponibilidadeService {
 
     private JornadaResponse salvarJornada(Profissional profissional, JornadaRequest request,
                                          String origem) {
+        travarProfissional(profissional);
         List<JornadaIntervaloRequest> pedidos = request.intervalosSeguros();
         validarIntervalos(pedidos);
 
@@ -257,6 +273,7 @@ public class DisponibilidadeService {
     @Transactional
     public void removerExcecao(Long unidadeId, Long profissionalId, Long id, String origem) {
         Profissional profissional = exigirEscrita(unidadeId, profissionalId);
+        travarProfissional(profissional);
         ExcecaoJornada excecao = buscarExcecao(profissional, id);
         excecoes.delete(excecao);
         auditar("EXCECAO_JORNADA_REMOVIDA", origem, "profissional=" + profissional.getId());
@@ -265,6 +282,7 @@ public class DisponibilidadeService {
     @Transactional
     public void removerMinhaExcecao(Long id, String origem) {
         Profissional profissional = profissionalDaSessao();
+        travarProfissional(profissional);
         excecoes.delete(buscarExcecao(profissional, id));
         auditar("EXCECAO_JORNADA_REMOVIDA", origem, "profissional=" + profissional.getId());
     }
@@ -276,6 +294,7 @@ public class DisponibilidadeService {
 
     private ExcecaoResponse salvarExcecao(Profissional profissional, ExcecaoRequest request,
                                           Long id, String origem) {
+        travarProfissional(profissional);
         validarHorarios(request.intervalosSeguros(), request.tipo());
         boolean duplicada = id == null
                 ? excecoes.existsByProfissionalIdAndData(profissional.getId(), request.data())
@@ -359,6 +378,7 @@ public class DisponibilidadeService {
     @Transactional
     public void removerAfastamento(Long unidadeId, Long profissionalId, Long id, String origem) {
         Profissional profissional = exigirEscrita(unidadeId, profissionalId);
+        travarProfissional(profissional);
         afastamentos.delete(buscarAfastamento(profissional, id));
         auditar("AFASTAMENTO_REMOVIDO", origem, "profissional=" + profissional.getId());
     }
@@ -366,6 +386,7 @@ public class DisponibilidadeService {
     @Transactional
     public void removerMeuAfastamento(Long id, String origem) {
         Profissional profissional = profissionalDaSessao();
+        travarProfissional(profissional);
         afastamentos.delete(buscarAfastamento(profissional, id));
         auditar("AFASTAMENTO_REMOVIDO", origem, "profissional=" + profissional.getId());
     }
@@ -380,6 +401,7 @@ public class DisponibilidadeService {
 
     private AfastamentoResponse salvarAfastamento(Profissional profissional, AfastamentoRequest request,
                                                   Long id, String origem) {
+        travarProfissional(profissional);
         if (request.dataInicio().isAfter(request.dataFim())) {
             throw new IllegalArgumentException("dataInicio deve ser anterior ou igual a dataFim");
         }
@@ -441,6 +463,7 @@ public class DisponibilidadeService {
     @Transactional
     public void removerFeriado(Long unidadeId, Long id, String origem) {
         Unidade unidade = exigirAdministradorUnidadeAtiva(unidadeId);
+        travarUnidade(unidade);
         Feriado feriado = buscarFeriado(unidade, id);
         feriados.delete(feriado);
         auditar("FERIADO_REMOVIDO", origem, "unidade=" + unidadeId);
@@ -448,6 +471,7 @@ public class DisponibilidadeService {
 
     private FeriadoResponse salvarFeriado(Unidade unidade, FeriadoRequest request, Long id,
                                           String origem) {
+        travarUnidade(unidade);
         boolean duplicado = id == null
                 ? feriados.existsByUnidadeIdAndData(unidade.getId(), request.data())
                 : feriados.existsByUnidadeIdAndDataAndIdNot(unidade.getId(), request.data(), id);
@@ -532,6 +556,7 @@ public class DisponibilidadeService {
     @Transactional
     public void removerBloqueio(Long unidadeId, Long id, String origem) {
         Unidade unidade = exigirAdministradorUnidadeAtiva(unidadeId);
+        travarUnidade(unidade);
         bloqueios.delete(buscarBloqueio(unidade, id));
         auditar("BLOQUEIO_REMOVIDO", origem, "unidade=" + unidadeId);
     }
@@ -539,6 +564,7 @@ public class DisponibilidadeService {
     @Transactional
     public void removerMeuBloqueio(Long id, String origem) {
         Profissional profissional = profissionalDaSessao();
+        travarProfissional(profissional);
         BloqueioAgenda bloqueio = buscarBloqueio(profissional.getUnidade(), id);
         exigirBloqueioDoProfissional(bloqueio, profissional);
         bloqueios.delete(bloqueio);
@@ -548,6 +574,8 @@ public class DisponibilidadeService {
     private BloqueioResponse salvarBloqueio(Unidade unidade, Profissional profissional,
                                             BloqueioRequest request, BloqueioAgenda existente,
                                             String origem) {
+        if (profissional == null) travarUnidade(unidade);
+        else travarProfissional(profissional);
         validarBloqueio(request);
         Long idIgnorado = existente == null ? null : existente.getId();
         List<BloqueioAgenda> mesmaAbrangencia = profissional == null

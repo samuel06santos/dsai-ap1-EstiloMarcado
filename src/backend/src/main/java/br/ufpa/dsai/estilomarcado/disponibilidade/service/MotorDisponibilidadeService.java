@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
-import br.ufpa.dsai.estilomarcado.agendamento.model.AtendimentoStatus;
 import br.ufpa.dsai.estilomarcado.agendamento.repository.AtendimentoRepository;
 import br.ufpa.dsai.estilomarcado.catalogo.api.exception.RecursoNaoEncontradoException;
 import br.ufpa.dsai.estilomarcado.catalogo.model.Profissional;
@@ -73,9 +72,9 @@ public class MotorDisponibilidadeService {
         }
 
         Map<Long, List<Ocupacao>> ocupacoes = elegiveis.isEmpty() ? Map.of()
-                : atendimentos.buscarOcupacaoDoDia(elegiveis.stream().map(Profissional::getId).toList(),
-                                data.atStartOfDay(), data.plusDays(1).atStartOfDay(),
-                                List.of(AtendimentoStatus.AGENDADO, AtendimentoStatus.CONFIRMADO))
+                : atendimentos.findAllById(atendimentos.buscarIdsOcupacao(
+                                elegiveis.stream().map(Profissional::getId).toList(),
+                                data.atStartOfDay(), data.plusDays(1).atStartOfDay()))
                         .stream().collect(Collectors.groupingBy(a -> a.getProfissional().getId(),
                                 Collectors.mapping(a -> new Ocupacao(a.getInicio(),
                                         a.getDuracaoMinutos(), a.getIntervaloMinutos()), Collectors.toList())));

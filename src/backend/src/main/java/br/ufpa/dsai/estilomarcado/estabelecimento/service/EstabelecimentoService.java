@@ -31,6 +31,10 @@ import br.ufpa.dsai.estilomarcado.estabelecimento.api.dto.FilialRequest;
 import br.ufpa.dsai.estilomarcado.estabelecimento.api.dto.FilialResponse;
 import br.ufpa.dsai.estilomarcado.estabelecimento.api.dto.ProfissionalRequest;
 import br.ufpa.dsai.estilomarcado.estabelecimento.api.dto.ProfissionalResponse;
+import br.ufpa.dsai.estilomarcado.agendamento.repository.AtendimentoRepository;
+import br.ufpa.dsai.estilomarcado.agendamento.model.AtendimentoStatus;
+import java.time.LocalDateTime;
+import jakarta.persistence.EntityManager;
 
 @Service
 public class EstabelecimentoService {
@@ -42,12 +46,15 @@ public class EstabelecimentoService {
     private final UsuarioAtual usuarioAtual;
     private final SessaoService sessoes;
     private final AuditoriaService auditoria;
+    private final AtendimentoRepository atendimentos;
+    private final EntityManager entityManager;
 
     public EstabelecimentoService(EstabelecimentoRepository estabelecimentos,
                                  UnidadeRepository unidades, ProfissionalRepository profissionais,
                                  UsuarioRepository usuarios, UsuarioInternoService contas,
                                  UsuarioAtual usuarioAtual, SessaoService sessoes,
-                                 AuditoriaService auditoria) {
+                                 AuditoriaService auditoria, AtendimentoRepository atendimentos,
+                                 EntityManager entityManager) {
         this.estabelecimentos = estabelecimentos;
         this.unidades = unidades;
         this.profissionais = profissionais;
@@ -56,6 +63,8 @@ public class EstabelecimentoService {
         this.usuarioAtual = usuarioAtual;
         this.sessoes = sessoes;
         this.auditoria = auditoria;
+        this.atendimentos = atendimentos;
+        this.entityManager = entityManager;
     }
 
     @Transactional(readOnly = true)
@@ -129,6 +138,10 @@ public class EstabelecimentoService {
     @Transactional
     public FilialResponse atualizarFilial(Long unidadeId, FilialRequest request, String origem) {
         Unidade unidade = exigirAdministradorDaFilial(unidadeId, false);
+        for (Profissional p : profissionais.findByUnidadeIdOrderByIdAsc(unidadeId)) {
+            profissionais.bloquear(p.getId());
+        }
+        entityManager.refresh(unidade);
         if (request.estabelecimentoId() != null || request.unidadeId() != null) {
             throw new IllegalArgumentException("vinculos da filial nao podem ser alterados");
         }
@@ -142,10 +155,17 @@ public class EstabelecimentoService {
                         unidade.getEstabelecimento().getId())) {
             throw new ConflitoException("a filial principal possui outras filiais ativas");
         }
+        String novoFuso = validarFuso(request.fusoHorario());
+        if ((!unidade.getFusoHorario().equals(novoFuso) || Boolean.FALSE.equals(request.ativa()))
+                && atendimentos.existsByProfissionalUnidadeIdAndStatusInAndInicioGreaterThanEqual(
+                    unidadeId, List.of(AtendimentoStatus.AGENDADO, AtendimentoStatus.CONFIRMADO),
+                    LocalDateTime.now(ZoneId.of(unidade.getFusoHorario())))) {
+            throw new ConflitoException("a filial possui agendamentos futuros ativos");
+        }
         unidade.setNome(request.nome());
         unidade.setEndereco(opcional(request.endereco()));
         unidade.setTelefone(opcional(request.telefone()));
-        unidade.setFusoHorario(validarFuso(request.fusoHorario()));
+        unidade.setFusoHorario(novoFuso);
         if (request.ativa() != null) { unidade.setAtiva(request.ativa()); }
         unidades.save(unidade);
         auditar("FILIAL_ALTERADA", origem, "unidade=" + unidadeId);
@@ -200,6 +220,14 @@ public class EstabelecimentoService {
             throw new IllegalArgumentException("vinculo do profissional nao pode ser alterado");
         }
         Profissional profissional = buscarProfissional(unidadeId, id);
+        profissionais.bloquear(id);
+        entityManager.refresh(profissional);
+        if (Boolean.FALSE.equals(request.ativo())
+                && atendimentos.findByProfissionalIdAndInicioGreaterThanEqualOrderByInicioAsc(
+                    id, LocalDateTime.now(ZoneId.of(profissional.getUnidade().getFusoHorario()))).stream()
+                    .anyMatch(a -> a.getStatus() != AtendimentoStatus.CANCELADO)) {
+            throw new ConflitoException("o profissional possui agendamentos futuros ativos");
+        }
         profissional.setNome(request.nome().trim());
         profissional.setApresentacao(opcional(request.apresentacao()));
         if (request.ativo() != null && profissional.isAtivo() != request.ativo()) {

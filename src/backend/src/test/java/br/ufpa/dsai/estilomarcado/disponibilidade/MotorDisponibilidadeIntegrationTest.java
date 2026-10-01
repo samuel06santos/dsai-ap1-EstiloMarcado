@@ -125,6 +125,20 @@ class MotorDisponibilidadeIntegrationTest {
     }
 
     @Test
+    void intervaloDoDiaAnteriorTambemOcupaManhaSeguinte() throws Exception {
+        Cliente cliente = clientes.save(new Cliente("Cliente"));
+        jdbc.update("""
+                insert into atendimento(profissional_id,servico_id,cliente_id,inicio,status,
+                    duracao_minutos,intervalo_minutos,servico_nome,preco_acordado,fuso_horario_agendamento)
+                values (?,?,?,'2026-10-04 23:30','AGENDADO',30,600,'Corte',10,'America/Sao_Paulo')
+                """, ana.getId(), servico.getId(), cliente.getId());
+        mvc.perform(get(rota()).param("data", dia.toString())
+                        .param("profissionalId", ana.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.horarios[0].inicio").value("2026-10-05T10:00:00"));
+    }
+
+    @Test
     void bloqueioEFeriadoRemovemHorarios() throws Exception {
         Long autorId = jdbc.queryForObject("INSERT INTO usuario "
                 + "(nome, email, email_normalizado, perfil, estado, unidade_id) "

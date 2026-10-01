@@ -279,7 +279,10 @@ export class EstabelecimentoAdminComponent implements OnInit {
                 </div>
                 @if (selecionado(); as escolhido) {
                   <p class="notice success" role="status">Selecionado: {{ hora(escolhido.inicio) }} com
-                    {{ nomeProfissional(escolhido.profissionalId) }}. A reserva será feita em uma etapa futura.</p>
+                    {{ nomeProfissional(escolhido.profissionalId) }}. Revise os dados antes de reservar.</p>
+                  <a class="button primary" [routerLink]="['/unidades', atual.id, 'revisar']"
+                    [queryParams]="{ servicoId: servicoSelecionado, profissionalId: escolhido.profissionalId,
+                      inicio: escolhido.inicio }">Revisar agendamento</a>
                 }
               } @else {
                 <p class="muted-copy" role="status">Não há horários livres nessa data. Tente outro dia ou profissional.</p>

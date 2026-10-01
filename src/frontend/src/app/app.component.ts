@@ -112,6 +112,7 @@ export class AppComponent implements OnInit {
     switch (sessao.perfil) {
       case 'CLIENTE': return [
         { texto: 'Início', icone: 'home', destino: '/' },
+        { texto: 'Meus agendamentos', icone: 'calendar', destino: '/meus-agendamentos' },
         ...(this.filialSelecionada() ? [{ texto: 'Filial e serviços', icone: 'scissors' as const,
           destino: `/unidades/${this.filialSelecionada()}` }] : []),
         { texto: 'Meu perfil', icone: 'user', destino: '/conta' }
@@ -123,11 +124,13 @@ export class AppComponent implements OnInit {
         { texto: 'Meu perfil', icone: 'user', destino: '/conta' }
       ];
       case 'RECEPCAO': return [
+        { texto: 'Agenda da filial', icone: 'calendar', destino: '/equipe/agendamentos' },
         { texto: 'Minha filial', icone: 'building', destino: '/minha-filial' },
         { texto: 'Meu perfil', icone: 'user', destino: '/conta' }
       ];
       case 'ADMINISTRADOR': return [
         { texto: 'Visão geral', icone: 'home', destino: '/administracao/estabelecimento' },
+        { texto: 'Agendamentos', icone: 'calendar', destino: '/equipe/agendamentos' },
         { texto: 'Minha filial', icone: 'building', destino: '/administracao/estabelecimento', fragmento: 'filial' },
         { texto: 'Profissionais', icone: 'scissors', destino: '/administracao/estabelecimento', fragmento: 'profissionais' },
         { texto: 'Equipe', icone: 'users', destino: '/administracao/usuarios' },
@@ -182,7 +185,7 @@ export class AppComponent implements OnInit {
   inicio(): string {
     switch (this.auth.sessao()?.perfil) {
       case 'PROFISSIONAL': return '/profissional/agenda';
-      case 'RECEPCAO': return '/minha-filial';
+      case 'RECEPCAO': return '/equipe/agendamentos';
       case 'ADMINISTRADOR': return '/administracao/estabelecimento';
       default: return '/';
     }

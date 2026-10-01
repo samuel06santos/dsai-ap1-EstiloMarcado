@@ -1,6 +1,11 @@
 package br.ufpa.dsai.estilomarcado.agendamento.model;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
+import java.math.BigDecimal;
+import br.ufpa.dsai.estilomarcado.autenticacao.model.Usuario;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 
 import br.ufpa.dsai.estilomarcado.catalogo.model.Profissional;
 import br.ufpa.dsai.estilomarcado.catalogo.model.Servico;
@@ -16,14 +21,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
-/**
- * Atendimento agendado para um profissional, em um horario, para um servico e um
- * cliente.
- *
- * <p>Representacao minima exigida pelo painel profissional. A spec de
- * agendamentos expandira esta entidade com as regras de conflito e demais
- * transicoes de status.</p>
- */
+/** Atendimento com snapshots comerciais e de ocupacao preservados no historico. */
 @Entity
 @Table(name = "atendimento")
 public class Atendimento {
@@ -57,6 +55,31 @@ public class Atendimento {
     @Column(nullable = false, length = 20)
     private AtendimentoStatus status;
 
+    @Column(name = "servico_nome", nullable = false, length = 120)
+    private String servicoNome;
+
+    @Column(name = "preco_acordado", nullable = false, precision = 12, scale = 2)
+    private BigDecimal precoAcordado;
+
+    @Column(name = "fuso_horario_agendamento", nullable = false, length = 80)
+    private String fusoHorarioAgendamento;
+
+    @Column(name = "criado_em", nullable = false)
+    private Instant criadoEm;
+
+    @Column(name = "atualizado_em", nullable = false)
+    private Instant atualizadoEm;
+
+    @Column(name = "cancelado_em")
+    private Instant canceladoEm;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cancelado_por")
+    private Usuario canceladoPor;
+
+    @Column(name = "motivo_cancelamento", length = 500)
+    private String motivoCancelamento;
+
     protected Atendimento() {
         // Construtor protegido exigido pelo JPA.
     }
@@ -70,7 +93,16 @@ public class Atendimento {
         this.status = status;
         this.duracaoMinutos = servico.getDuracaoMinutos();
         this.intervaloMinutos = servico.getIntervaloMinutos() == null ? 0 : servico.getIntervaloMinutos();
+        this.servicoNome = servico.getNome();
+        this.precoAcordado = servico.getPreco();
+        this.fusoHorarioAgendamento = servico.getUnidade().getFusoHorario();
     }
+
+    @PrePersist
+    void criarInstantes() { criadoEm = Instant.now(); atualizadoEm = criadoEm; }
+
+    @PreUpdate
+    void atualizarInstante() { atualizadoEm = Instant.now(); }
 
     public Long getId() {
         return id;
@@ -110,5 +142,19 @@ public class Atendimento {
 
     public Integer getIntervaloMinutos() {
         return intervaloMinutos;
+    }
+
+    public String getServicoNome() { return servicoNome; }
+    public BigDecimal getPrecoAcordado() { return precoAcordado; }
+    public String getFusoHorarioAgendamento() { return fusoHorarioAgendamento; }
+    public Instant getCriadoEm() { return criadoEm; }
+    public Instant getAtualizadoEm() { return atualizadoEm; }
+    public Instant getCanceladoEm() { return canceladoEm; }
+    public String getMotivoCancelamento() { return motivoCancelamento; }
+    public void cancelar(Usuario autor, String motivo) {
+        status = AtendimentoStatus.CANCELADO;
+        canceladoEm = Instant.now();
+        canceladoPor = autor;
+        motivoCancelamento = motivo;
     }
 }

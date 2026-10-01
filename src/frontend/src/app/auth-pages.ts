@@ -24,7 +24,7 @@ import { EstabelecimentoService, Profissional } from './estabelecimento.service'
             @switch (sessao.perfil) {
               @case ('PROFISSIONAL') { <a class="button primary" routerLink="/profissional/agenda"><app-icon name="calendar" /> Ver minha agenda</a> }
               @case ('ADMINISTRADOR') { <a class="button primary" routerLink="/administracao/estabelecimento"><app-icon name="building" /> Ver meu painel</a> }
-              @case ('RECEPCAO') { <a class="button primary" routerLink="/minha-filial"><app-icon name="building" /> Ver minha filial</a> }
+              @case ('RECEPCAO') { <a class="button primary" routerLink="/equipe/agendamentos"><app-icon name="calendar" /> Ver agenda da filial</a> }
               @default { <a class="button primary" routerLink="/conta"><app-icon name="user" /> Meu perfil</a> }
             }
           </div>
@@ -71,6 +71,7 @@ export class HomeComponent { readonly auth = inject(AuthService); }
 export class LoginComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   email = '';
   senha = '';
   readonly erro = signal('');
@@ -82,8 +83,11 @@ export class LoginComponent {
       .subscribe({ next: (sessao) => {
         const destino = sessao.perfil === 'PROFISSIONAL' ? '/profissional/agenda'
           : sessao.perfil === 'ADMINISTRADOR' ? '/administracao/estabelecimento'
-          : sessao.perfil === 'RECEPCAO' ? '/minha-filial' : '/';
-        void this.router.navigateByUrl(destino);
+          : sessao.perfil === 'RECEPCAO' ? '/equipe/agendamentos' : '/';
+        const retorno = this.route.snapshot.queryParamMap.get('retorno');
+        const seguro = sessao.perfil === 'CLIENTE' && retorno?.startsWith('/unidades/')
+          && !retorno.startsWith('//') && !retorno.includes('://');
+        void this.router.navigateByUrl(seguro && retorno ? retorno : destino);
       }, error: (e) => this.erro.set(AuthService.mensagemErro(e)) });
   }
 }

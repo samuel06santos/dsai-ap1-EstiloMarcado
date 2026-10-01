@@ -32,6 +32,7 @@ export interface ServicoPublico {
   id: number;
   nome: string;
   duracaoMinutos: number;
+  preco: number;
   profissionais: { id: number; nome: string; ativo: boolean }[];
 }
 
