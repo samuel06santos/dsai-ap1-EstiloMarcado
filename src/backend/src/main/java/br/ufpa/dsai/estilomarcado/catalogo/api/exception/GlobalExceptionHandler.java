@@ -6,15 +6,51 @@ import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import br.ufpa.dsai.estilomarcado.autenticacao.exception.CredenciaisInvalidasException;
+import br.ufpa.dsai.estilomarcado.autenticacao.exception.LimiteTentativasException;
+import br.ufpa.dsai.estilomarcado.autenticacao.exception.TokenInvalidoException;
 
 /**
  * Traduz excecoes do catalogo de servicos em respostas HTTP consistentes.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(CredenciaisInvalidasException.class)
+    public ResponseEntity<ErroResponse> handleCredenciais(CredenciaisInvalidasException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ErroResponse(HttpStatus.UNAUTHORIZED.value(), ex.getMessage()));
+    }
+
+    @ExceptionHandler(TokenInvalidoException.class)
+    public ResponseEntity<ErroResponse> handleToken(TokenInvalidoException ex) {
+        return ResponseEntity.unprocessableEntity()
+                .body(new ErroResponse(HttpStatus.UNPROCESSABLE_ENTITY.value(), ex.getMessage()));
+    }
+
+    @ExceptionHandler(LimiteTentativasException.class)
+    public ResponseEntity<ErroResponse> handleLimite(LimiteTentativasException ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(new ErroResponse(HttpStatus.TOO_MANY_REQUESTS.value(), ex.getMessage()));
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErroResponse> handleAcessoNegado(AccessDeniedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ErroResponse(HttpStatus.FORBIDDEN.value(), "acesso negado"));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErroResponse> handleJsonInvalido(HttpMessageNotReadableException ex) {
+        return ResponseEntity.badRequest()
+                .body(new ErroResponse(HttpStatus.BAD_REQUEST.value(), "requisicao invalida"));
+    }
 
     @ExceptionHandler(RecursoNaoEncontradoException.class)
     public ResponseEntity<ErroResponse> handleNaoEncontrado(RecursoNaoEncontradoException ex) {

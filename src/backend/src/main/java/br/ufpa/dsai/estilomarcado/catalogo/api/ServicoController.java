@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import br.ufpa.dsai.estilomarcado.catalogo.api.dto.ServicoRequest;
 import br.ufpa.dsai.estilomarcado.catalogo.api.dto.ServicoResponse;
 import br.ufpa.dsai.estilomarcado.catalogo.service.ServicoService;
+import br.ufpa.dsai.estilomarcado.autenticacao.security.UsuarioAtual;
 import jakarta.validation.Valid;
 
 @RestController
@@ -24,9 +25,11 @@ import jakarta.validation.Valid;
 public class ServicoController {
 
     private final ServicoService servicoService;
+    private final UsuarioAtual usuarioAtual;
 
-    public ServicoController(ServicoService servicoService) {
+    public ServicoController(ServicoService servicoService, UsuarioAtual usuarioAtual) {
         this.servicoService = servicoService;
+        this.usuarioAtual = usuarioAtual;
     }
 
     @GetMapping("/unidades/{unidadeId}/servicos")
@@ -42,6 +45,7 @@ public class ServicoController {
     @ResponseStatus(HttpStatus.CREATED)
     public ServicoResponse criar(@PathVariable Long unidadeId,
                                  @Valid @RequestBody ServicoRequest request) {
+        usuarioAtual.exigirAdministradorDaUnidade(unidadeId);
         return servicoService.criar(unidadeId, request);
     }
 
@@ -53,16 +57,23 @@ public class ServicoController {
     @PutMapping("/servicos/{id}")
     public ServicoResponse atualizar(@PathVariable Long id,
                                      @Valid @RequestBody ServicoRequest request) {
+        exigirUnidadeDoServico(id);
         return servicoService.atualizar(id, request);
     }
 
     @PatchMapping("/servicos/{id}/ativar")
     public ServicoResponse ativar(@PathVariable Long id) {
+        exigirUnidadeDoServico(id);
         return servicoService.ativar(id);
     }
 
     @PatchMapping("/servicos/{id}/desativar")
     public ServicoResponse desativar(@PathVariable Long id) {
+        exigirUnidadeDoServico(id);
         return servicoService.desativar(id);
+    }
+
+    private void exigirUnidadeDoServico(Long id) {
+        usuarioAtual.exigirAdministradorDaUnidade(servicoService.buscar(id).getUnidadeId());
     }
 }

@@ -67,6 +67,11 @@ class ServicoCatalogIntegrationTest {
 
     @BeforeEach
     void prepararBanco() {
+        jdbcTemplate.execute("DELETE FROM spring_session_attributes");
+        jdbcTemplate.execute("DELETE FROM spring_session");
+        jdbcTemplate.execute("DELETE FROM evento_seguranca");
+        jdbcTemplate.execute("DELETE FROM token_usuario");
+        jdbcTemplate.execute("DELETE FROM usuario");
         jdbcTemplate.execute("DELETE FROM servico_profissional");
         jdbcTemplate.execute("DELETE FROM servico");
         jdbcTemplate.execute("DELETE FROM profissional");

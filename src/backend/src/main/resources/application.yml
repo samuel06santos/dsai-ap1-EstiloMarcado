@@ -6,11 +6,42 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:estilo_marcado}
     password: ${SPRING_DATASOURCE_PASSWORD:estilo-marcado-dev-2026}
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: none
   sql:
     init:
       mode: never
+  session:
+    jdbc:
+      initialize-schema: never
+    timeout: 30m
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+
+server:
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: lax
+        secure: ${SESSION_COOKIE_SECURE:false}
+
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:4200}
+  auth:
+    password-cost: ${AUTH_PASSWORD_COST:12}
+    allowed-origins: ${AUTH_ALLOWED_ORIGINS:http://localhost:4200}
+    bootstrap:
+      enabled: ${AUTH_BOOTSTRAP_ADMIN_ENABLED:false}
+      nome: ${AUTH_BOOTSTRAP_ADMIN_NAME:Administrador}
+      email: ${AUTH_BOOTSTRAP_ADMIN_EMAIL:}
+      unidade-id: ${AUTH_BOOTSTRAP_ADMIN_UNIT_ID:0}
+      unidade-nome: ${AUTH_BOOTSTRAP_ADMIN_UNIT_NAME:Unidade Administrativa}
 
 management:
   endpoints:
