@@ -391,29 +391,43 @@ export class HistoricoAgendamentoComponent {
       <section class="surface-panel"><h2>Encaixe de {{ s.clienteNome }}</h2>
         <p class="muted-copy">Reserve um horário para este cliente somente com a autorização marcada abaixo.</p>
         <form (ngSubmit)="encaixar(s)"><div class="form-grid">
-          <label>Profissional<select name="profissionalId" required [(ngModel)]="profissionalId"
-            (ngModelChange)="consultarHorarios()">
+          <label>Profissional<select name="profissionalId" required [ngModel]="profissionalId"
+            (ngModelChange)="selecionarProfissional($event)">
             <option [ngValue]="null">Selecione</option>
             @for (p of profissionais(); track p.id) {
-              @if (s.profissionalId === null || s.profissionalId === p.id) {
-                <option [ngValue]="p.id">{{ p.nome }}</option>
-              }
+              <option [ngValue]="p.id">{{ p.nome }}</option>
             }
           </select></label>
-          <label>Data <input type="date" name="dataEncaixe" required [(ngModel)]="dataEncaixe"
-            [min]="s.dataInicio" [max]="s.dataFim" (ngModelChange)="consultarHorarios()"></label>
-          <label>Horário disponível<select name="inicio" required [(ngModel)]="inicio"
-            [disabled]="carregandoHorarios() || !horarios().length">
-            <option value="">Selecione</option>
+          <label>Data <input type="date" name="dataEncaixe" required [ngModel]="dataEncaixe"
+            [min]="s.dataInicio" [max]="s.dataFim" (ngModelChange)="selecionarData($event)"></label>
+          <label>Horário disponível<select name="inicio" required [(ngModel)]="inicio">
+            <option value="">{{ carregandoHorarios() ? 'Consultando…' :
+              !profissionalId || !dataEncaixe ? 'Escolha profissional e data' :
+              horarios().length ? 'Selecione' : 'Nenhum horário disponível' }}</option>
             @for (h of horarios(); track h.inicio) {
               <option [value]="h.inicio">{{ h.inicio.slice(11, 16) }}</option>
             }
           </select></label>
         </div><label class="checkbox-line"><input type="checkbox" name="autorizada" required
           [(ngModel)]="autorizada"> Cliente autorizou este horário</label>
+          @if (carregandoProfissionais()) { <p class="field-help" role="status">Carregando profissionais do serviço…</p> }
+          @else if (erroProfissionais()) {
+            <p class="notice error" role="alert">{{ erroProfissionais() }}</p>
+            <button class="button ghost small" type="button" (click)="selecionar(s)">Tentar novamente</button>
+          }
+          @else if (!profissionais().length) {
+            <p class="field-help">Este serviço não tem profissionais disponíveis para o encaixe.</p>
+          }
           @if (carregandoHorarios()) { <p class="field-help" role="status">Consultando horários…</p> }
+          @else if (erroHorarios()) {
+            <p class="notice error" role="alert">{{ erroHorarios() }}</p>
+            <button class="button ghost small" type="button" (click)="consultarHorarios()">Tentar novamente</button>
+          }
           @else if (horariosConsultados() && !horarios().length) {
-            <p class="field-help">Não há horários disponíveis nesta data para o profissional e a preferência do cliente.</p>
+            <p class="field-help">Não há horários nesta data para o profissional e a preferência do cliente.
+              Escolha outra data ou outro profissional.</p>
+          } @else if (profissionais().length && (!profissionalId || !dataEncaixe)) {
+            <p class="field-help">Escolha o profissional e a data para consultar os horários.</p>
           }
           <button class="button primary" type="submit" [disabled]="enviando() || carregandoHorarios() || !inicio">
             {{ enviando() ? 'Confirmando…' : 'Confirmar encaixe' }}</button></form>
@@ -434,20 +448,19 @@ export class FilaEquipeComponent {
   readonly solicitacoes = signal<Solicitacao[]>([]);
   readonly selecionada = signal<Solicitacao | null>(null);
   readonly ofertasDaSelecionada = signal<Oferta[]>([]);
-  readonly profissionais = signal<Profissional[]>([]);
+  readonly profissionais = signal<ServicoPublico['profissionais']>([]);
+  readonly carregandoProfissionais = signal(false);
+  readonly erroProfissionais = signal('');
   readonly horarios = signal<HorarioDisponivel[]>([]);
   readonly carregandoHorarios = signal(false);
   readonly horariosConsultados = signal(false);
+  readonly erroHorarios = signal('');
   readonly enviando = signal(false);
   readonly mensagem = signal(''); readonly erro = signal('');
   profissionalId: number | null = null; dataEncaixe = ''; inicio = '';
   autorizada = false; statusFiltro = 'ATIVA';
   private consultaAtual = 0;
-  constructor() {
-    const id = this.auth.sessao()?.unidadeId;
-    if (id) { this.catalogo.profissionais(id).subscribe({ next: lista => this.profissionais.set(lista) }); }
-    this.carregar();
-  }
+  constructor() { this.carregar(); }
   carregar(): void { const id = this.auth.sessao()?.unidadeId;
     if (id) { this.api.fila(id, this.statusFiltro).subscribe({ next: dados => this.solicitacoes.set(dados),
       error: () => this.erro.set('Não foi possível carregar a fila.') }); } }
@@ -458,15 +471,43 @@ export class FilaEquipeComponent {
   selecionar(s: Solicitacao): void {
     this.consultaAtual++;
     this.selecionada.set(s);
-    this.profissionalId = s.profissionalId;
+    this.profissionalId = null;
     this.dataEncaixe = '';
     this.inicio = '';
     this.autorizada = false;
+    this.profissionais.set([]);
+    this.carregandoProfissionais.set(true);
+    this.erroProfissionais.set('');
     this.horarios.set([]);
     this.horariosConsultados.set(false);
     this.carregandoHorarios.set(false);
+    this.erroHorarios.set('');
     this.mensagem.set('');
     this.erro.set('');
+    this.catalogo.servicosDisponiveis(s.unidadeId).subscribe({
+      next: servicos => {
+        if (this.selecionada()?.id !== s.id) { return; }
+        const profissionais = servicos.find(servico => servico.id === s.servicoId)
+          ?.profissionais.filter(pro => pro.ativo &&
+            (s.profissionalId === null || pro.id === s.profissionalId)) ?? [];
+        this.profissionais.set(profissionais);
+        this.carregandoProfissionais.set(false);
+        if (profissionais.length === 1) { this.selecionarProfissional(profissionais[0].id); }
+      },
+      error: () => {
+        if (this.selecionada()?.id !== s.id) { return; }
+        this.erroProfissionais.set('Não foi possível carregar os profissionais deste serviço.');
+        this.carregandoProfissionais.set(false);
+      }
+    });
+  }
+  selecionarProfissional(id: number | null): void {
+    this.profissionalId = id;
+    this.consultarHorarios();
+  }
+  selecionarData(data: string): void {
+    this.dataEncaixe = data;
+    this.consultarHorarios();
   }
   consultarHorarios(): void {
     const consulta = ++this.consultaAtual;
@@ -475,9 +516,10 @@ export class FilaEquipeComponent {
     this.horarios.set([]);
     this.horariosConsultados.set(false);
     this.carregandoHorarios.set(false);
+    this.erroHorarios.set('');
     if (!s || !this.profissionalId || !this.dataEncaixe) { return; }
     if (this.dataEncaixe < s.dataInicio || this.dataEncaixe > s.dataFim) {
-      this.erro.set('Escolha uma data dentro da preferência do cliente.'); return;
+      this.erroHorarios.set('Escolha uma data dentro da preferência do cliente.'); return;
     }
     this.erro.set('');
     this.carregandoHorarios.set(true);
@@ -494,7 +536,7 @@ export class FilaEquipeComponent {
         },
         error: () => {
           if (consulta !== this.consultaAtual) { return; }
-          this.erro.set('Não foi possível consultar os horários. Tente novamente.');
+          this.erroHorarios.set('Não foi possível consultar os horários deste serviço e profissional.');
           this.carregandoHorarios.set(false);
         }
       });
