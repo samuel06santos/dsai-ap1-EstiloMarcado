@@ -270,6 +270,20 @@ docker compose --env-file deploy/.env.production -f docker-compose.prod.yml down
 
 ---
 
+## Solucao de problemas
+
+- **Tela sem estilos / "raw html" e, no console, `Executing inline event
+  handler violates ... script-src 'self'`:** o build de producao do Angular, com
+  `inlineCritical` (padrao), injeta um `<link ... onload="this.media='all'">` no
+  `index.html`. A CSP com `script-src 'self'` bloqueia esse handler e a folha de
+  estilos nunca e aplicada. Por isso `src/frontend/angular.json` desativa
+  `inlineCritical` no perfil de producao. Ao atualizar o frontend, confirme essa
+  opcao e reconstrua a imagem.
+- **Fontes nao carregam:** a CSP precisa manter `https://fonts.gstatic.com` em
+  `font-src` (arquivos `.woff2`) e `https://fonts.googleapis.com` em `style-src`.
+- **Headers duplicados (`X-Frame-Options`, `X-Content-Type-Options`):** normais;
+  o Spring Security adiciona os mesmos headers nas respostas da API.
+
 ## Resumo dos arquivos
 
 | Arquivo | Destino no servidor |
