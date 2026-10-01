@@ -23,6 +23,35 @@ interface Evento { id: number; tipo: string; ocorridoEm: string; estadoAnterior:
   estadoNovo: string; inicioAnterior: string | null; inicioNovo: string; }
 interface PreferenciasNotificacao { lembretes: boolean; avisosLista: boolean; }
 
+function dataLocal(valor: string): string {
+  const partes = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor);
+  return partes ? `${partes[3]}/${partes[2]}/${partes[1]}` : valor;
+}
+
+function dataHoraLocal(valor: string): string {
+  const partes = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(valor);
+  return partes ? `${partes[3]}/${partes[2]}/${partes[1]} às ${partes[4]}:${partes[5]}` : valor;
+}
+
+const formatadoresInstante = new Map<string, Intl.DateTimeFormat>();
+
+function instanteLocal(valor: string, fusoHorario?: string): string {
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) { return valor; }
+  const chave = fusoHorario ?? '';
+  let formatador = formatadoresInstante.get(chave);
+  if (!formatador) {
+    formatador = new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      timeZone: fusoHorario
+    });
+    formatadoresInstante.set(chave, formatador);
+  }
+  return formatador.format(data).replace(', ', ' às ');
+}
+
+function horaCurta(valor: string): string { return valor.slice(0, 5); }
+
 export class OperacaoApi {
   private readonly http = inject(HttpClient);
   privadas(): Observable<Solicitacao[]> { return this.http.get<Solicitacao[]>('/api/me/lista-espera'); }
@@ -117,7 +146,7 @@ export class OperacaoApi {
         <div class="user-list">
           @for (s of solicitacoes(); track s.id) {
             <article><div><strong>Serviço {{ s.servicoId }} · filial {{ s.unidadeId }}</strong>
-              <small>{{ s.dataInicio }} a {{ s.dataFim }} · {{ s.status }}
+              <small>{{ dataLocal(s.dataInicio) }} a {{ dataLocal(s.dataFim) }} · {{ s.status }}
                 @if (s.posicaoAproximada) { · posição aproximada {{ s.posicaoAproximada }} }
               </small></div>
               <div class="form-actions">
@@ -130,8 +159,8 @@ export class OperacaoApi {
           }
         </div>
         @for (o of ofertas(); track o.id) {
-          <article class="notice"><strong>Vaga {{ o.inicio }} ({{ o.fusoHorario }})</strong>
-            <span> · {{ o.status }} · válida até {{ o.expiraEm }}</span>
+          <article class="notice"><strong>Vaga {{ dataHoraLocal(o.inicio) }} ({{ o.fusoHorario }})</strong>
+            <span> · {{ o.status }} · válida até {{ instanteLocal(o.expiraEm, o.fusoHorario) }}</span>
             @if (o.status === 'ENVIADA') {
               <button class="button primary small" type="button" (click)="aceitar(o)">Aceitar vaga</button>
             }
@@ -141,6 +170,9 @@ export class OperacaoApi {
     </div>`
 })
 export class ListaEsperaComponent {
+  readonly dataLocal = dataLocal;
+  readonly dataHoraLocal = dataHoraLocal;
+  readonly instanteLocal = instanteLocal;
   private readonly api = inject(OperacaoApi);
   private readonly catalogo = inject(EstabelecimentoService);
   private readonly rota = inject(ActivatedRoute);
@@ -333,8 +365,11 @@ export class HistoricoAgendamentoComponent {
       </select></label><div class="user-list">
       @for (s of solicitacoes(); track s.id) {
         <article><div><strong>{{ s.clienteNome }}</strong><small>Serviço {{ s.servicoId }} ·
-          {{ s.dataInicio }} a {{ s.dataFim }} · {{ s.status }} · {{ s.telefoneContato || 'Sem telefone' }}</small>
-          <small>Entrada: {{ s.criadoEm }} · horário {{ s.horaInicio || 'livre' }}–{{ s.horaFim || 'livre' }}
+          {{ dataLocal(s.dataInicio) }} a {{ dataLocal(s.dataFim) }} · {{ s.status }} · {{ s.telefoneContato || 'Sem telefone' }}</small>
+          <small>Entrada: {{ instanteLocal(s.criadoEm) }}
+            @if (s.horaInicio && s.horaFim) {
+              · horário {{ horaCurta(s.horaInicio) }}–{{ horaCurta(s.horaFim) }}
+            } @else { · horário livre }
             @if (s.posicaoAproximada) { · posição {{ s.posicaoAproximada }} }
           </small></div>
           <button class="button ghost small" type="button" (click)="verOfertas(s)">Ofertas</button>
@@ -348,7 +383,7 @@ export class HistoricoAgendamentoComponent {
       <section class="surface-panel"><h2>Ofertas da solicitação</h2>
         <p class="muted-copy">Horários oferecidos ao cliente; a vaga só é reservada após a aceitação.</p>
         @for (o of ofertasDaSelecionada(); track o.id) {
-          <p>{{ o.inicio }} ({{ o.fusoHorario }}) · {{ o.status }} · validade {{ o.expiraEm }}</p>
+          <p>{{ dataHoraLocal(o.inicio) }} ({{ o.fusoHorario }}) · {{ o.status }} · validade {{ instanteLocal(o.expiraEm, o.fusoHorario) }}</p>
         }
       </section>
     }
@@ -389,6 +424,10 @@ export class HistoricoAgendamentoComponent {
   </div>`
 })
 export class FilaEquipeComponent {
+  readonly dataLocal = dataLocal;
+  readonly dataHoraLocal = dataHoraLocal;
+  readonly instanteLocal = instanteLocal;
+  readonly horaCurta = horaCurta;
   private readonly api = inject(OperacaoApi);
   private readonly auth = inject(AuthService);
   private readonly catalogo = inject(EstabelecimentoService);
