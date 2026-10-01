@@ -329,7 +329,9 @@ export class FilialPublicaComponent implements OnInit {
         this.api.servicosDisponiveis(id).subscribe({
           next: lista => {
             this.servicos.set(lista);
-            this.servicoSelecionado = lista[0]?.id ?? null;
+            const desejado = Number(this.route.snapshot.queryParamMap.get('servicoId'));
+            this.servicoSelecionado = lista.find(item => item.id === desejado)?.id
+              ?? lista[0]?.id ?? null;
             this.consultarHorarios();
           },
           error: () => this.erroHorarios.set('Não foi possível carregar os serviços.')

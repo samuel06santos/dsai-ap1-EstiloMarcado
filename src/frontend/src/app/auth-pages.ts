@@ -7,14 +7,18 @@ import { finalize } from 'rxjs';
 import { AuthService, ErroApi, MeuPerfil, Perfil, Usuario } from './auth.service';
 import { UiIconComponent } from './ui-icon.component';
 import { EstabelecimentoService, Profissional } from './estabelecimento.service';
+import { PainelClienteComponent } from './painel-cliente-pages';
 
 @Component({
   standalone: true,
-  imports: [RouterLink, UiIconComponent],
+  imports: [RouterLink, UiIconComponent, PainelClienteComponent],
   template: `
     @if (auth.sessao() === undefined) {
       <div class="loading-state" role="status">Carregando seu espaço…</div>
     } @else if (auth.sessao(); as sessao) {
+      @if (sessao.perfil === 'CLIENTE') {
+        <app-painel-cliente />
+      } @else {
       <section class="dashboard-welcome">
         <div class="welcome-copy">
           <p class="eyebrow">Seu espaço</p>
@@ -31,6 +35,7 @@ import { EstabelecimentoService, Profissional } from './estabelecimento.service'
         </div>
         <div class="welcome-art" aria-hidden="true"><span>EM</span><i></i><i></i></div>
       </section>
+      }
     } @else {
       <section class="hero">
         <div>

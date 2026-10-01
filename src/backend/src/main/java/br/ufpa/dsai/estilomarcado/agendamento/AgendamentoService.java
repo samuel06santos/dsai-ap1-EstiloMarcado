@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
@@ -39,6 +40,7 @@ import br.ufpa.dsai.estilomarcado.disponibilidade.service.CalculadoraHorarios.Oc
 import br.ufpa.dsai.estilomarcado.disponibilidade.service.CalculadoraJanelas;
 import br.ufpa.dsai.estilomarcado.disponibilidade.api.dto.ConsultaHorariosResponse;
 import br.ufpa.dsai.estilomarcado.disponibilidade.api.dto.HorarioDisponivelResponse;
+import br.ufpa.dsai.estilomarcado.operacao.NotificacaoService;
 import jakarta.persistence.EntityManager;
 import tools.jackson.databind.ObjectMapper;
 
@@ -56,11 +58,13 @@ public class AgendamentoService {
     private final Clock clock;
     private final EntityManager entityManager;
     private final ObjectMapper mapper;
+    private final NotificacaoService notificacoes;
 
     public AgendamentoService(AtendimentoRepository atendimentos, ClienteRepository clientes,
             UsuarioRepository usuarios, ProfissionalRepository profissionais, ServicoRepository servicos,
             UsuarioAtual atual, CalculadoraJanelas janelas, CalculadoraHorarios horarios,
-            JdbcTemplate jdbc, Clock clock, EntityManager entityManager, ObjectMapper mapper) {
+            JdbcTemplate jdbc, Clock clock, EntityManager entityManager, ObjectMapper mapper,
+            NotificacaoService notificacoes) {
         this.atendimentos = atendimentos;
         this.clientes = clientes;
         this.usuarios = usuarios;
@@ -73,15 +77,23 @@ public class AgendamentoService {
         this.clock = clock;
         this.entityManager = entityManager;
         this.mapper = mapper;
+        this.notificacoes = notificacoes;
     }
 
     public record Criacao(Long servicoId, Long profissionalId, LocalDateTime inicio,
                           Long clienteId, String clienteNome, String clienteTelefone) {}
-    public record Resposta(Long id, Long unidadeId, Long clienteId, Long servicoId,
-                           String servicoNome, java.math.BigDecimal precoAcordado,
-                           Long profissionalId, LocalDateTime inicio, LocalDateTime fim,
+    public record Resposta(Long id, Long unidadeId, String unidadeNome, boolean unidadeAtiva, Long clienteId,
+                           Long servicoId, String servicoNome, boolean servicoAtivo,
+                           java.math.BigDecimal precoAcordado, Long profissionalId, String profissionalNome,
+                           LocalDateTime inicio, LocalDateTime fim,
                            String fusoHorario, AtendimentoStatus status, Instant criadoEm,
                            Instant atualizadoEm, Instant canceladoEm, String motivoCancelamento) {}
+
+    public record ClienteResumo(String nome, String telefoneContato) {}
+    public record ResumoPainel(long proximosAtivos, long realizados, long cancelados) {}
+    public record PainelResposta(Instant agora, ClienteResumo cliente, Resposta proximo,
+                                 List<Resposta> proximos, List<Resposta> historico,
+                                 ResumoPainel resumo) {}
 
     @Transactional
     public Resposta criar(Long unidadeId, Criacao pedido, String chaveTexto) {
@@ -220,7 +232,8 @@ public class AgendamentoService {
 
     @Transactional(readOnly = true)
     public List<Resposta> listar(Long unidadeId, LocalDate de, LocalDate ate, AtendimentoStatus status,
-                                 Long profissionalId, int pagina, int tamanho) {
+                                 Long profissionalId, Long filtroUnidadeId, Long filtroServicoId,
+                                 int pagina, int tamanho) {
         UsuarioPrincipal sessao = atual.get();
         validarPeriodo(de, ate, pagina, tamanho);
         List<Atendimento> itens;
@@ -230,7 +243,7 @@ public class AgendamentoService {
             var cliente = clientes.findByUsuarioId(sessao.id());
             if (cliente.isEmpty()) return List.of();
             itens = atendimentos.listarCliente(cliente.get().getId(), de.atStartOfDay(),
-                    ate.plusDays(1).atStartOfDay(), status, paginacao);
+                    ate.plusDays(1).atStartOfDay(), status, filtroUnidadeId, filtroServicoId, paginacao);
         } else {
             exigirEquipe(sessao, unidadeId);
             itens = atendimentos.listarUnidade(unidadeId, de.atStartOfDay(),
@@ -238,6 +251,55 @@ public class AgendamentoService {
         }
         return itens.stream().map(a -> resposta(a, sessao)).toList();
     }
+
+    @Transactional(readOnly = true)
+    public PainelResposta painel(int limiteProximos, int limiteHistorico) {
+        UsuarioPrincipal sessao = atual.get();
+        if (sessao.perfil() != PerfilUsuario.CLIENTE) {
+            throw new AccessDeniedException("acesso negado");
+        }
+        if (limiteProximos < 1 || limiteProximos > 20 || limiteHistorico < 1 || limiteHistorico > 20) {
+            throw new IllegalArgumentException("limites devem estar entre 1 e 20");
+        }
+        Instant agora = clock.instant();
+        Usuario autor = usuarios.findById(sessao.id()).orElseThrow();
+        ClienteResumo dados = new ClienteResumo(autor.getNome(), autor.getTelefoneContato());
+        var cliente = clientes.findByUsuarioId(sessao.id());
+        if (cliente.isEmpty()) {
+            return new PainelResposta(agora, dados, null, List.of(), List.of(),
+                    new ResumoPainel(0, 0, 0));
+        }
+        List<Atendimento> todos = atendimentos.buscarDoCliente(cliente.get().getId());
+        List<ItemPainel> itens = todos.stream().map(a -> {
+            Instant instante = a.getInicio()
+                    .atZone(ZoneId.of(a.getFusoHorarioAgendamento())).toInstant();
+            boolean cancelado = a.getStatus() == AtendimentoStatus.CANCELADO;
+            boolean futuro = !cancelado && instante.isAfter(agora);
+            return new ItemPainel(a, instante, futuro, cancelado);
+        }).toList();
+        List<ItemPainel> ativosFuturos = itens.stream().filter(ItemPainel::futuro).toList();
+        List<Resposta> proximos = ativosFuturos.stream()
+                .sorted(Comparator.comparing(ItemPainel::instante)
+                        .thenComparing(item -> item.atendimento().getId()))
+                .limit(limiteProximos)
+                .map(item -> resposta(item.atendimento(), sessao))
+                .toList();
+        List<Resposta> historico = itens.stream()
+                .filter(item -> item.cancelado() || !item.futuro())
+                .sorted(Comparator.comparing(ItemPainel::instante).reversed()
+                        .thenComparing(item -> item.atendimento().getId(), Comparator.reverseOrder()))
+                .limit(limiteHistorico)
+                .map(item -> resposta(item.atendimento(), sessao))
+                .toList();
+        long realizados = itens.stream().filter(item -> !item.cancelado() && !item.futuro()).count();
+        long cancelados = itens.stream().filter(ItemPainel::cancelado).count();
+        Resposta proximo = proximos.isEmpty() ? null : proximos.get(0);
+        return new PainelResposta(agora, dados, proximo, proximos, historico,
+                new ResumoPainel(ativosFuturos.size(), realizados, cancelados));
+    }
+
+    private record ItemPainel(Atendimento atendimento, Instant instante, boolean futuro,
+                              boolean cancelado) {}
 
     private void validarPeriodo(LocalDate de, LocalDate ate, int pagina, int tamanho) {
         if (de == null || ate == null || de.isAfter(ate) || ate.isAfter(de.plusDays(30))
@@ -303,7 +365,10 @@ public class AgendamentoService {
             }
             Cliente cliente = clientes.findById(pedido.clienteId())
                     .orElseThrow(() -> new RecursoNaoEncontradoException("cliente nao encontrado"));
-            if (!atendimentos.existsByClienteIdAndProfissionalUnidadeId(cliente.getId(), unidadeId)) {
+            boolean naLista = Boolean.TRUE.equals(jdbc.queryForObject("""
+                    select exists(select 1 from lista_espera where usuario_id=? and unidade_id=? and status='ATIVA')
+                    """, Boolean.class, cliente.getUsuario() == null ? -1L : cliente.getUsuario().getId(), unidadeId));
+            if (!atendimentos.existsByClienteIdAndProfissionalUnidadeId(cliente.getId(), unidadeId) && !naLista) {
                 throw new RecursoNaoEncontradoException("cliente nao encontrado");
             }
             return cliente;
@@ -361,19 +426,23 @@ public class AgendamentoService {
 
     private void evento(Atendimento a, Usuario autor, String tipo, AtendimentoStatus estadoAnterior,
                         LocalDateTime inicioAnterior) {
-        jdbc.update("""
+        Long eventoId = jdbc.queryForObject("""
                 insert into agendamento_evento(atendimento_id,autor_id,tipo,ocorrido_em,
                     estado_anterior,estado_novo,inicio_anterior,inicio_novo)
                 values (?,?,?,?,?,?,?,?)
-                """, a.getId(), autor.getId(), tipo, java.sql.Timestamp.from(clock.instant()),
+                returning id
+                """, Long.class, a.getId(), autor.getId(), tipo, java.sql.Timestamp.from(clock.instant()),
                 estadoAnterior == null ? null : estadoAnterior.name(), a.getStatus().name(),
                 inicioAnterior, a.getInicio());
+        notificacoes.registrarAgendamento(eventoId, a, tipo);
     }
 
     private Resposta resposta(Atendimento a, UsuarioPrincipal sessao) {
+        var unidade = a.getProfissional().getUnidade();
         Long clienteId = sessao.perfil() == PerfilUsuario.CLIENTE ? null : a.getCliente().getId();
-        return new Resposta(a.getId(), a.getProfissional().getUnidade().getId(), clienteId,
-                a.getServico().getId(), a.getServicoNome(), a.getPrecoAcordado(), a.getProfissional().getId(),
+        return new Resposta(a.getId(), unidade.getId(), unidade.getNome(), unidade.isAtiva(), clienteId,
+                a.getServico().getId(), a.getServicoNome(), a.getServico().isAtivo(),
+                a.getPrecoAcordado(), a.getProfissional().getId(), a.getProfissional().getNome(),
                 a.getInicio(), a.getInicio().plusMinutes(a.getDuracaoMinutos()),
                 a.getFusoHorarioAgendamento(), a.getStatus(), a.getCriadoEm(), a.getAtualizadoEm(),
                 a.getCanceladoEm(), a.getMotivoCancelamento());

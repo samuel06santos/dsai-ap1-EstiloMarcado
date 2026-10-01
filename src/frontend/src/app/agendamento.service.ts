@@ -8,11 +8,15 @@ export type EstadoAgendamento = 'AGENDADO' | 'CONFIRMADO' | 'CANCELADO';
 export interface Agendamento {
   id: number;
   unidadeId: number;
+  unidadeNome?: string;
+  unidadeAtiva?: boolean;
   clienteId: number | null;
   servicoId: number;
   servicoNome: string;
+  servicoAtivo?: boolean;
   precoAcordado: number;
   profissionalId: number;
+  profissionalNome?: string;
   inicio: string;
   fim: string;
   fusoHorario: string;
@@ -21,6 +25,21 @@ export interface Agendamento {
   atualizadoEm: string;
   canceladoEm: string | null;
   motivoCancelamento: string | null;
+}
+
+export interface ResumoPainel {
+  proximosAtivos: number;
+  realizados: number;
+  cancelados: number;
+}
+
+export interface PainelCliente {
+  agora: string;
+  cliente: { nome: string; telefoneContato: string | null };
+  proximo: Agendamento | null;
+  proximos: Agendamento[];
+  historico: Agendamento[];
+  resumo: ResumoPainel;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -34,9 +53,22 @@ export class AgendamentoApi {
       { headers: { 'Idempotency-Key': chave } }));
   }
 
-  meus(de: string, ate: string, pagina = 0): Observable<Agendamento[]> {
-    return this.http.get<Agendamento[]>('/api/me/agendamentos',
-      { params: { de, ate, pagina: String(pagina), tamanho: '100' } });
+  meus(de: string, ate: string, filtros: {
+    pagina?: number; status?: EstadoAgendamento; unidadeId?: number; servicoId?: number;
+  } = {}): Observable<Agendamento[]> {
+    const params: Record<string, string> = {
+      de, ate, pagina: String(filtros.pagina ?? 0), tamanho: '100'
+    };
+    if (filtros.status) { params['status'] = filtros.status; }
+    if (filtros.unidadeId != null) { params['unidadeId'] = String(filtros.unidadeId); }
+    if (filtros.servicoId != null) { params['servicoId'] = String(filtros.servicoId); }
+    return this.http.get<Agendamento[]>('/api/me/agendamentos', { params });
+  }
+
+  painel(limiteProximos = 5, limiteHistorico = 5): Observable<PainelCliente> {
+    return this.http.get<PainelCliente>('/api/me/painel', {
+      params: { limiteProximos: String(limiteProximos), limiteHistorico: String(limiteHistorico) }
+    });
   }
 
   filial(unidadeId: number, de: string, ate: string, profissionalId?: number): Observable<Agendamento[]> {

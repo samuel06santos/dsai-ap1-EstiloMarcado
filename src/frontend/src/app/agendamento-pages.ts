@@ -128,13 +128,27 @@ export class RevisaoAgendamentoComponent implements OnInit {
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   template: `
     <section class="page-stack">
       <div class="page-heading"><p class="eyebrow">Sua agenda</p><h1>Meus agendamentos</h1>
         <p>Consulte seu histórico e cuide dos próximos horários.</p></div>
       <section class="surface-panel section-card">
-        <label>Mês <input type="month" [(ngModel)]="mes" (change)="carregar()"></label>
+        <div class="form-grid">
+          <label>Mês <input type="month" [(ngModel)]="mes" (change)="carregar()"></label>
+          <label>Filial<select [(ngModel)]="filtroUnidadeId" (ngModelChange)="carregar()">
+            <option [ngValue]="null">Todas</option>
+            @for (opcao of unidadesDisponiveis(); track opcao.id) {
+              <option [ngValue]="opcao.id">{{ opcao.nome }}</option>
+            }
+          </select></label>
+          <label>Serviço<select [(ngModel)]="filtroServicoId" (ngModelChange)="carregar()">
+            <option [ngValue]="null">Todos</option>
+            @for (opcao of servicosDisponiveis(); track opcao.id) {
+              <option [ngValue]="opcao.id">{{ opcao.nome }}</option>
+            }
+          </select></label>
+        </div>
         @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
         @if (mensagemSucesso()) { <p class="notice success" role="status">{{ mensagemSucesso() }}</p> }
         @if (carregando()) { <p role="status">Carregando…</p> }
@@ -145,17 +159,22 @@ export class RevisaoAgendamentoComponent implements OnInit {
               <div><strong>{{ item.servicoNome }}</strong>
                 <small>{{ item.inicio.slice(0, 16).replace('T', ' ') }} ·
                   {{ item.status }} · {{ item.precoAcordado | currency:'BRL' }}</small>
-                <small>Filial #{{ item.unidadeId }} · Profissional #{{ item.profissionalId }}</small>
+                <small>{{ item.unidadeNome ?? ('Filial #' + item.unidadeId) }}
+                  · {{ item.profissionalNome ?? ('#' + item.profissionalId) }}</small>
                 @if (item.motivoCancelamento) { <small>Motivo: {{ item.motivoCancelamento }}</small> }
               </div>
-              @if (item.status !== 'CANCELADO' && item.inicio > agoraLocal(item.fusoHorario)) {
-                <div class="form-actions">
+              <div class="form-actions">
+                @if (item.status !== 'CANCELADO' && item.inicio > agoraLocal(item.fusoHorario)) {
                   <button class="button ghost" type="button" [disabled]="enviando()"
                     (click)="iniciarReagendamento(item)">Reagendar</button>
                   <button class="button ghost" type="button" [disabled]="enviando()"
                     (click)="cancelar(item)">Cancelar</button>
-                </div>
-              }
+                }
+                @if (item.unidadeAtiva !== false && item.servicoAtivo !== false) {
+                  <a class="button ghost" [routerLink]="['/unidades', item.unidadeId]"
+                    [queryParams]="{ servicoId: item.servicoId }">Agendar novamente</a>
+                }
+              </div>
             </article>
           }
         </div>
@@ -191,8 +210,23 @@ export class MeusAgendamentosComponent implements OnInit {
   readonly mensagemSucesso = signal('');
   mes = diaAtual().slice(0, 7);
   dataReagendamento = diaAtual();
+  filtroUnidadeId: number | null = null;
+  filtroServicoId: number | null = null;
 
   ngOnInit(): void { this.carregar(); }
+
+  unidadesDisponiveis(): { id: number; nome: string }[] {
+    const mapa = new Map<number, string>();
+    this.itens().forEach(item => mapa.set(item.unidadeId,
+      item.unidadeNome ?? `Filial #${item.unidadeId}`));
+    return [...mapa].map(([id, nome]) => ({ id, nome }));
+  }
+
+  servicosDisponiveis(): { id: number; nome: string }[] {
+    const mapa = new Map<number, string>();
+    this.itens().forEach(item => mapa.set(item.servicoId, item.servicoNome));
+    return [...mapa].map(([id, nome]) => ({ id, nome }));
+  }
   agoraLocal(fuso: string): string {
     return new Intl.DateTimeFormat('sv-SE', { timeZone: fuso, year: 'numeric', month: '2-digit',
       day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date()).replace(' ', 'T');
@@ -203,7 +237,10 @@ export class MeusAgendamentosComponent implements OnInit {
     const de = `${this.mes}-01`;
     const ate = new Date(Date.UTC(ano, mes, 0)).toISOString().slice(0, 10);
     this.carregando.set(true); this.erro.set('');
-    this.api.meus(de, ate).subscribe({
+    this.api.meus(de, ate, {
+      unidadeId: this.filtroUnidadeId ?? undefined,
+      servicoId: this.filtroServicoId ?? undefined
+    }).subscribe({
       next: itens => { this.itens.set(itens); this.carregando.set(false); },
       error: e => { this.erro.set(mensagem(e)); this.carregando.set(false); }
     });

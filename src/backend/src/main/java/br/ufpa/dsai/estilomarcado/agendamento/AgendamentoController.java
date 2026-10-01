@@ -40,9 +40,19 @@ public class AgendamentoController {
     public ResponseEntity<List<Resposta>> meus(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate de,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate ate,
             @RequestParam(required = false) AtendimentoStatus status,
+            @RequestParam(required = false) Long unidadeId,
+            @RequestParam(required = false) Long servicoId,
             @RequestParam(defaultValue = "0") int pagina, @RequestParam(defaultValue = "50") int tamanho) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(service.listar(null, de, ate, status, null, pagina, tamanho));
+                .body(service.listar(null, de, ate, status, null, unidadeId, servicoId, pagina, tamanho));
+    }
+
+    @GetMapping("/api/me/painel")
+    public ResponseEntity<AgendamentoService.PainelResposta> painel(
+            @RequestParam(defaultValue = "5") int limiteProximos,
+            @RequestParam(defaultValue = "5") int limiteHistorico) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(service.painel(limiteProximos, limiteHistorico));
     }
 
     @GetMapping("/api/unidades/{unidadeId}/agendamentos")
@@ -53,7 +63,7 @@ public class AgendamentoController {
             @RequestParam(required = false) Long profissionalId,
             @RequestParam(defaultValue = "0") int pagina, @RequestParam(defaultValue = "50") int tamanho) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(service.listar(unidadeId, de, ate, status, profissionalId, pagina, tamanho));
+                .body(service.listar(unidadeId, de, ate, status, profissionalId, null, null, pagina, tamanho));
     }
 
     @GetMapping("/api/agendamentos/{id}")

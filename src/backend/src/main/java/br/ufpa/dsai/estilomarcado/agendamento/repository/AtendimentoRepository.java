@@ -39,11 +39,29 @@ public interface AtendimentoRepository extends JpaRepository<Atendimento, Long> 
             select a from Atendimento a where a.cliente.id = :clienteId
             and a.inicio >= :inicio and a.inicio < :fim
             and (:status is null or a.status = :status)
+            and (:unidadeId is null or a.profissional.unidade.id = :unidadeId)
+            and (:servicoId is null or a.servico.id = :servicoId)
             order by a.inicio, a.id
             """)
     List<Atendimento> listarCliente(@Param("clienteId") Long clienteId,
             @Param("inicio") LocalDateTime inicio, @Param("fim") LocalDateTime fim,
-            @Param("status") AtendimentoStatus status, Pageable pageable);
+            @Param("status") AtendimentoStatus status,
+            @Param("unidadeId") Long unidadeId, @Param("servicoId") Long servicoId,
+            Pageable pageable);
+
+    /**
+     * Todos os atendimentos de um cliente, com filial, profissional e servico ja
+     * carregados, para compor o painel do cliente sem consultas por item.
+     */
+    @Query("""
+            select a from Atendimento a
+              join fetch a.profissional p
+              join fetch p.unidade
+              join fetch a.servico
+              join fetch a.cliente
+             where a.cliente.id = :clienteId
+            """)
+    List<Atendimento> buscarDoCliente(@Param("clienteId") Long clienteId);
 
     @Query("""
             select a from Atendimento a where a.profissional.unidade.id = :unidadeId
