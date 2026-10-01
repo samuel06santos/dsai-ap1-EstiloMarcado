@@ -3,38 +3,54 @@
 ## O que é e por que existe
 
 A seed de dados mock popula o banco de desenvolvimento do Estilo Marcado com um
-conjunto pequeno, coerente e realista de filiais, profissionais, serviços,
-contas, vínculos entre clientes e contas, jornadas, folgas, feriados, bloqueios,
-atendimentos e o histórico de eventos de agendamento. Sem ela, cada desenvolvedor
-precisa cadastrar tudo manualmente pela interface antes de conseguir exercitar
-catálogo, disponibilidade, painel profissional, agendamento e login.
+conjunto coerente e realista de estabelecimentos, filiais, profissionais,
+serviços, contas, vínculos entre clientes e contas, jornadas, folgas, feriados,
+bloqueios, atendimentos, histórico de eventos de agendamento, lista de espera,
+ofertas de encaixe e notificações. Sem ela, cada desenvolvedor precisa cadastrar
+tudo manualmente pela interface antes de conseguir exercitar catálogo,
+disponibilidade, agenda diária/semanal do profissional, painel do cliente,
+agendamento, lista de espera e login.
 
 Esta SPEC define **o que a seed contém**, **quais invariantes ela respeita** e
 **como executá-la** depois de subir o ambiente com Docker Compose. Ela é um
 recurso de apoio ao desenvolvimento: não faz parte do fluxo de produção e não
 substitui as migrações Flyway, que continuam sendo a única autoridade do schema.
 
-A parte de agendamento foi incorporada depois de a SPEC de agendamento e a
-migração `V12__agendamentos.sql` existirem: a seed passou a preencher vínculo
-`cliente.usuario_id`, snapshots comerciais e de ocupação do atendimento, dados de
-cancelamento e as linhas de `agendamento_evento` que a interface de histórico
-consome.
+A seed evolui junto com o sistema. A parte de agendamento foi incorporada depois
+da migração `V12__agendamentos.sql` (vínculo `cliente.usuario_id`, snapshots
+comerciais e de ocupação, cancelamento e `agendamento_evento`). A parte
+operacional foi incorporada depois de `V13__lista_espera_e_notificacoes.sql`
+(lista de espera, ofertas, notificações internas e outbox) e do painel do
+cliente, que exige histórico de atendimentos. As novas filiais, profissionais,
+serviços e a agenda ampliada existem para que a agenda em calendário, os
+relatórios operacionais e o painel do cliente tenham dados representativos.
 
 ## Escopo
 
 - Um arquivo SQL de seed versionado no repositório.
 - Um script de execução para Windows/PowerShell e um para Linux/macOS.
-- Dados mock de: estabelecimento, filiais (`unidade`), profissionais, serviços,
-  vínculos serviço–profissional, contas de acesso (`usuario`), fichas de cliente
-  (`cliente`), jornada semanal, exceções de jornada, afastamentos, feriados,
-  bloqueios de agenda e atendimentos.
-- Parte de agendamento: vínculo de clientes autenticados a contas
+- Dados mock de: dois estabelecimentos, quatro filiais (`unidade`), oito
+  profissionais, serviços, vínculos serviço–profissional, contas de acesso
+  (`usuario`), fichas de cliente (`cliente`), jornada semanal, exceções de
+  jornada, afastamentos, feriados, bloqueios de agenda e atendimentos.
+- **Agenda ampliada**: atendimentos distribuídos entre dias passados
+  (histórico, consumido pelo painel do cliente e pelos relatórios) e próximos
+  dias (agenda diária/semanal/mensal do profissional e agenda operacional). O
+  encaixe derivado da lista de espera é representado por um atendimento com
+  `lista_espera_id`.
+- **Parte de agendamento**: vínculo de clientes autenticados a contas
   (`cliente.usuario_id`), telefone de contato de clientes avulsos, snapshots
   comerciais e de ocupação do atendimento (`servico_nome`, `preco_acordado`,
   `duracao_minutos`, `intervalo_minutos`, `fuso_horario_agendamento`), instantes
   de criação/atualização e dados de cancelamento (`cancelado_em`,
   `cancelado_por`, `motivo_cancelamento`) e o histórico de eventos
   (`agendamento_evento`) de criação, confirmação, cancelamento e reagendamento.
+- **Lista de espera**: solicitações em todos os estados e seus eventos
+  (`lista_espera`, `lista_espera_evento`), ofertas de encaixe
+  (`lista_espera_oferta`) em estados distintos e o vínculo de um encaixe aceito.
+- **Notificações**: preferências (`notificacao_preferencia`), notificações
+  internas lidas e não lidas (`notificacao_interna`) e itens de saída
+  (`notificacao_outbox`) em estados distintos, sem disparar envios reais.
 - Comportamento **idempotente** por padrão e opção de **reset** dos dados de
   domínio.
 - Documentação no `README.md`.
@@ -54,6 +70,10 @@ consome.
   testes de integração do fluxo real.
 - Popular `agendamento_idempotencia`: são dados efêmeros, com validade de 24
   horas, criados apenas pelo fluxo real de escrita.
+- Executar os agendadores (`@Scheduled`) de lista de espera e de notificações
+  como parte da seed. O processamento real do outbox é responsabilidade da
+  aplicação; a seed apenas grava estados plausíveis e usa prazos/`enviar_apos`
+  futuros para que a rotina não reescreva os dados semeados imediatamente.
 - Importação de dados reais, anonimização de bases existentes ou geração
   massiva de registros para testes de carga.
 - Sincronização automática da seed com mudanças futuras de schema.
@@ -172,6 +192,13 @@ deixam o banco em estado parcial, pois a seed é transacional.
   quem estiver usando os dados mock.
 - `agendamento_evento` usa IDs explícitos com `ON CONFLICT DO NOTHING`, pois o
   histórico é append-only e não deve ser reescrito.
+- `lista_espera`, `lista_espera_evento`, `lista_espera_oferta`,
+  `notificacao_interna` e `notificacao_outbox` usam IDs explícitos com
+  `ON CONFLICT DO NOTHING`, pois representam fila e histórico; `lista_espera`
+  também pode usar `ON CONFLICT (id) DO UPDATE` para status/conteúdo. As
+  preferências usam `ON CONFLICT (usuario_id) DO NOTHING`.
+- A agenda ampliada complementa os atendimentos existentes usando IDs explícitos
+  com `ON CONFLICT (id) DO UPDATE` nos snapshots, como os demais atendimentos.
 - Ao final, `setval(pg_get_serial_sequence(...))` reposiciona cada sequência
   para o maior `id` presente, evitando colisões em inserções futuras feitas pela
   aplicação.
@@ -182,6 +209,8 @@ A opção de reset executa, em uma única instrução, o `TRUNCATE` das tabelas 
 domínio com `RESTART IDENTITY CASCADE`, na seguinte relação:
 
 ```text
+notificacao_outbox, notificacao_interna, notificacao_preferencia,
+lista_espera_evento, lista_espera_oferta, lista_espera,
 agendamento_evento, agendamento_idempotencia, bloqueio_agenda, evento_seguranca,
 token_usuario, atendimento, usuario, excecao_jornada_intervalo, excecao_jornada,
 afastamento, feriado, jornada_intervalo, servico_profissional, servico,
@@ -197,18 +226,25 @@ deve ser usada de forma consciente.
 Todos os IDs abaixo estão na faixa reservada. Datas relativas usam `CURRENT_DATE`
 para que a agenda semeada permaneça nos próximos dias.
 
-### Estabelecimento e filiais (`estabelecimento`, `unidade`)
+### Estabelecimentos e filiais (`estabelecimento`, `unidade`)
+
+Dois estabelecimentos, cada um com filiais próprias, para exercitar isolamento
+por filial, relatórios e a página pública de cada unidade.
 
 | `estabelecimento.id` | Nome |
 | --- | --- |
 | 1000 | Estilo Marcado (Mock) |
+| 1001 | Studio Bella (Mock) |
 
 | `unidade.id` | Nome | Principal | Estabelecimento | Endereço | Telefone |
 | --- | --- | --- | --- | --- | --- |
 | 1000 | Unidade Centro | Sim | 1000 | Av. Presidente Vargas, 1200 - Belém/PA | (91) 3222-1000 |
 | 1001 | Unidade Batista Campos | Não | 1000 | Rua dos Mundurucus, 2450 - Belém/PA | (91) 3222-2000 |
+| 1002 | Unidade Nazaré | Sim | 1001 | Tv. Quintino Bocaiúva, 780 - Belém/PA | (91) 3223-3000 |
+| 1003 | Unidade Umarizal | Não | 1001 | Rua Domingos Marreiros, 1500 - Belém/PA | (91) 3223-4000 |
 
-Ambas usam `America/Sao_Paulo` e estão ativas.
+Todas usam `America/Sao_Paulo` e estão ativas. Cada estabelecimento tem
+exatamente uma filial principal.
 
 ### Profissionais (`profissional`)
 
@@ -218,6 +254,14 @@ Ambas usam `America/Sao_Paulo` e estão ativas.
 | 1001 | Carlos Lima | 1000 | Barbeiro e especialista em barba. |
 | 1002 | Beatriz Rocha | 1001 | Cabeleireira e manicure. |
 | 1003 | Diego Mendes | 1001 | Barbeiro e designer de sobrancelha. |
+| 1004 | Fernanda Alves | 1002 | Cabeleireira e colorista. |
+| 1005 | Rafael Nunes | 1002 | Barbeiro e especialista em barba. |
+| 1006 | Patrícia Gomes | 1003 | Manicure e cabeleireira. |
+| 1007 | Lucas Barros | 1003 | Barbeiro e terapeuta capilar. |
+
+Cada filial tem dois profissionais. Os quatro novos profissionais têm conta de
+acesso própria (ver "Contas de acesso") e jornada cadastrada (ver "Jornada
+semanal").
 
 ### Serviços (`servico`) e vínculos (`servico_profissional`)
 
@@ -230,6 +274,16 @@ Ambas usam `America/Sao_Paulo` e estão ativas.
 | 1004 | Corte Masculino | 1001 | 30 min | R$ 45,00 | 10 min | 1002, 1003 |
 | 1005 | Manicure | 1001 | 45 min | R$ 50,00 | 10 min | 1002 |
 | 1006 | Hidratação | 1001 | 40 min | R$ 70,00 | 10 min | 1002, 1003 |
+| 1007 | Corte Masculino | 1002 | 30 min | R$ 45,00 | 10 min | 1004, 1005 |
+| 1008 | Corte Feminino | 1002 | 60 min | R$ 85,00 | 10 min | 1004 |
+| 1009 | Barba | 1002 | 30 min | R$ 35,00 | 10 min | 1005 |
+| 1010 | Corte Masculino | 1003 | 30 min | R$ 45,00 | 10 min | 1006, 1007 |
+| 1011 | Manicure | 1003 | 45 min | R$ 50,00 | 10 min | 1006 |
+| 1012 | Hidratação | 1003 | 40 min | R$ 70,00 | 10 min | 1006, 1007 |
+
+O índice `uk_servico_unidade_nome_normalizado` (migração `V14`) garante que o
+nome é único por filial sem diferenciar maiúsculas nem espaços de borda; por
+isso há "Corte Masculino" em mais de uma filial, mas nunca duplicado na mesma.
 
 ### Clientes (`cliente`)
 
@@ -268,10 +322,17 @@ domínio fictício `@estilomarcado.dev`.
 | 1007 | Cliente Demo | `cliente@estilomarcado.dev` | CLIENTE | — | — |
 | 1008 | João Pereira | `joao.pereira@estilomarcado.dev` | CLIENTE | — | — |
 | 1009 | Maria Oliveira | `maria.oliveira@estilomarcado.dev` | CLIENTE | — | — |
+| 1010 | Fernanda Alves | `fernanda.alves@estilomarcado.dev` | PROFISSIONAL | 1002 | 1004 |
+| 1011 | Rafael Nunes | `rafael.nunes@estilomarcado.dev` | PROFISSIONAL | 1002 | 1005 |
+| 1012 | Patrícia Gomes | `patricia.gomes@estilomarcado.dev` | PROFISSIONAL | 1003 | 1006 |
+| 1013 | Lucas Barros | `lucas.barros@estilomarcado.dev` | PROFISSIONAL | 1003 | 1007 |
+| 1014 | Administração Nazaré | `admin.nazare@estilomarcado.dev` | ADMINISTRADOR | 1002 | — |
+| 1015 | Recepção Umarizal | `recepcao.umarizal@estilomarcado.dev` | RECEPCAO | 1003 | — |
 
 Contas de cliente respeitam a regra de vínculo (sem filial e sem profissional);
 contas internas têm filial; contas de profissional têm filial e vínculo
-profissional único.
+profissional único. As filiais do Studio Bella (1002 e 1003) têm administrador e
+recepção próprios para exercitar o isolamento por filial.
 
 ### Jornada semanal (`jornada_intervalo`)
 
@@ -284,6 +345,10 @@ intervalos por dia útil, separando manhã e tarde.
 | Carlos Lima (1001) | 2–6 | 10:00–14:00 e 15:00–19:00 |
 | Beatriz Rocha (1002) | 1–5 | 08:00–12:00 e 13:00–17:00 |
 | Diego Mendes (1003) | 1–5 | 10:00–13:00 e 14:00–20:00 |
+| Fernanda Alves (1004) | 1–5 | 09:00–12:00 e 13:00–18:00 |
+| Rafael Nunes (1005) | 2–6 | 10:00–14:00 e 15:00–19:00 |
+| Patrícia Gomes (1006) | 1–5 | 08:00–12:00 e 13:00–17:00 |
+| Lucas Barros (1007) | 1–5 | 10:00–13:00 e 14:00–20:00 |
 
 ### Exceções de jornada (`excecao_jornada`, `excecao_jornada_intervalo`)
 
@@ -318,11 +383,13 @@ intervalos por dia útil, separando manhã e tarde.
 
 ### Atendimentos (`atendimento`)
 
-Quatorze atendimentos distribuídos nos próximos três dias, em horários dentro da
-jornada de cada profissional e apenas com serviços que ele executa. Os status
-cobrem `AGENDADO`, `CONFIRMADO` e `CANCELADO`. Nenhum par de atendimentos ativos
-do mesmo profissional se sobrepõe, respeitando a restrição `EXCLUDE`
-`ex_atendimento_ocupacao` introduzida pela SPEC de agendamento.
+Estes quatorze atendimentos são o núcleo original, distribuídos nos próximos
+três dias, em horários dentro da jornada de cada profissional e apenas com
+serviços que ele executa. Os status cobrem `AGENDADO`, `CONFIRMADO` e
+`CANCELADO`. A seção "Agenda ampliada" acrescenta histórico e novos dias para os
+demais profissionais. Nenhum par de atendimentos ativos do mesmo profissional se
+sobrepõe, respeitando a restrição `EXCLUDE` `ex_atendimento_ocupacao`
+introduzida pela SPEC de agendamento.
 
 Cada registro carrega os snapshots definidos pela SPEC de agendamento:
 `servico_nome` e `preco_acordado` copiados do serviço; `fuso_horario_agendamento`
@@ -376,6 +443,112 @@ eventos de criação usam `ocorrido_em` anterior aos de confirmação/cancelamen
 de modo que a linha do tempo seja coerente. `autor_id`, `atendimento_id` e
 `estado_novo` são sempre preenchidos.
 
+### Agenda ampliada (`atendimento`, IDs 1014–1040)
+
+Aos quatorze atendimentos originais somam-se vinte e sete, cobrindo dias passados
+(histórico do painel do cliente e relatórios operacionais) e próximos (agenda
+diária/semanal/mensal do profissional). Cada linha copia os snapshots do serviço
+e da filial, como os demais. As datas usam `CURRENT_DATE + N`, com `N` negativo
+para o histórico.
+
+| ID | Profissional | Serviço | Cliente | Dia | Hora | Status |
+| ---: | ---: | ---: | ---: | --- | --- | --- |
+| 1014 | 1000 | 1000 | 1003 | `-3` | 09:30 | CONFIRMADO |
+| 1015 | 1000 | 1001 | 1001 | `-10` | 13:30 | CONFIRMADO |
+| 1016 | 1001 | 1002 | 1002 | `-2` | 10:30 | CONFIRMADO |
+| 1017 | 1002 | 1005 | 1004 | `-5` | 08:30 | CONFIRMADO |
+| 1018 | 1003 | 1004 | 1000 | `-2` | 10:00 | CONFIRMADO |
+| 1019 | 1004 | 1008 | 1000 | `-12` | 14:00 | CONFIRMADO |
+| 1020 | 1004 | 1008 | 1000 | `+1` | 09:00 | CONFIRMADO |
+| 1021 | 1004 | 1007 | 1001 | `+1` | 10:30 | AGENDADO |
+| 1022 | 1004 | 1008 | 1002 | `+1` | 14:00 | AGENDADO |
+| 1023 | 1004 | 1007 | 1003 | `+2` | 11:00 | AGENDADO |
+| 1024 | 1005 | 1009 | 1003 | `-6` | 15:30 | CONFIRMADO |
+| 1025 | 1005 | 1007 | 1000 | `-6` | 16:30 | CONFIRMADO |
+| 1026 | 1005 | 1009 | 1001 | `+1` | 10:30 | AGENDADO |
+| 1027 | 1005 | 1007 | 1000 | `+1` | 15:00 | CONFIRMADO |
+| 1028 | 1005 | 1007 | 1002 | `+2` | 10:00 | AGENDADO |
+| 1029 | 1006 | 1012 | 1002 | `-4` | 08:30 | CONFIRMADO |
+| 1030 | 1006 | 1011 | 1003 | `-4` | 13:30 | CONFIRMADO |
+| 1031 | 1006 | 1011 | 1002 | `+1` | 08:30 | CONFIRMADO |
+| 1032 | 1006 | 1010 | 1003 | `+1` | 10:00 | AGENDADO |
+| 1033 | 1006 | 1012 | 1000 | `+1` | 13:30 | AGENDADO |
+| 1034 | 1006 | 1011 | 1001 | `+2` | 09:00 | AGENDADO |
+| 1035 | 1007 | 1012 | 1003 | `-3` | 14:00 | CONFIRMADO |
+| 1036 | 1007 | 1010 | 1000 | `-3` | 17:00 | CONFIRMADO |
+| 1037 | 1007 | 1010 | 1001 | `+1` | 10:30 | AGENDADO |
+| 1038 | 1007 | 1012 | 1000 | `+1` | 14:30 | AGENDADO |
+| 1039 | 1007 | 1010 | 1002 | `+2` | 16:00 | AGENDADO |
+| 1040 | 1002 | 1005 | 1002 | `+1` | 15:00 | AGENDADO (encaixe) |
+
+O atendimento `1040` é o resultado do encaixe da lista de espera `1002`: nasce
+`AGENDADO` com `lista_espera_id = 1002` e é contado como encaixe nos relatórios.
+Nenhum par de atendimentos ativos do mesmo profissional se sobrepõe.
+
+Para cada atendimento de 1014 a 1040 a seed gera um evento `CRIACAO`; os
+`CONFIRMADO` recebem também um `CONFIRMACAO`. O autor é o usuário do cliente
+vinculado (`1007`, `1008` ou `1009`) quando existe, ou um administrador/recepção
+da filial para clientes avulsos. O `ocorrido_em` fica próximo do atendimento e
+nunca no futuro, de modo que os indicadores diários dos relatórios façam sentido.
+
+### Lista de espera e ofertas (`lista_espera`, `lista_espera_evento`, `lista_espera_oferta`)
+
+Cinco solicitações cobrem todos os estados. A unicidade de solicitação ativa
+(`usuario_id`, `unidade_id`, `servico_id`) é respeitada.
+
+| ID | Usuário | Filial | Serviço | Profissional | Janela | Status |
+| ---: | ---: | ---: | ---: | ---: | --- | --- |
+| 1000 | 1007 | 1000 | 1000 | 1000 | `+2` a `+9`, 09:00–12:00 | ATIVA |
+| 1001 | 1008 | 1000 | 1001 | — | `+3` a `+10` | ATIVA |
+| 1002 | 1009 | 1001 | 1005 | 1002 | `+1` a `+7` | ATENDIDA |
+| 1003 | 1007 | 1000 | 1002 | 1001 | `-5` a `-1` | EXPIRADA |
+| 1004 | 1009 | 1001 | 1006 | 1003 | `+4` a `+11` | CANCELADA |
+
+Cada solicitação tem seus eventos em `lista_espera_evento` (`ATIVA`, `ATENDIDA`,
+`EXPIRADA`, `CANCELADA`), com autor quando aplicável. As ofertas de encaixe
+cobrem os estados `ENVIADA`, `ACEITA`, `EXPIRADA` e `INDISPONIVEL`:
+
+| ID | Solicitação | Profissional | Início | Status |
+| ---: | ---: | ---: | --- | --- |
+| 1000 | 1000 | 1000 | `+3` 09:00 | ENVIADA |
+| 1001 | 1000 | 1000 | `+4` 09:00 | INDISPONIVEL |
+| 1002 | 1001 | 1000 | `+4` 11:00 | EXPIRADA |
+| 1003 | 1002 | 1002 | `+1` 15:00 | ACEITA |
+
+A oferta `1003`, aceita, corresponde ao atendimento `1040` (`+1` 15:00). A oferta
+`1000`, ainda `ENVIADA`, usa `expira_em` futuro e coerente com a preferência para
+que o agendador de lista de espera não a invalide de imediato.
+
+### Notificações (`notificacao_preferencia`, `notificacao_interna`, `notificacao_outbox`)
+
+Preferências para as contas de cliente, incluindo casos que desligam lembretes ou
+avisos de lista:
+
+| Usuário | `lembretes` | `avisos_lista` |
+| ---: | --- | --- |
+| 1007 | Ligado | Ligado |
+| 1008 | Desligado | Ligado |
+| 1009 | Ligado | Desligado |
+
+Notificações internas, algumas já lidas e outras não, cobrindo `CRIACAO`,
+`CONFIRMACAO`, `CANCELAMENTO`, `LEMBRETE` e `OFERTA`, com `referencia_tipo`
+`AGENDAMENTO` ou `OFERTA` e `dedupe_key` único.
+
+Itens de outbox em estados distintos:
+
+| ID | Usuário | Tipo | Referência | Status |
+| ---: | ---: | --- | --- | --- |
+| 1000 | 1007 | CONFIRMACAO | Agendamento 1000 | ENVIADO |
+| 1001 | 1007 | LEMBRETE | Agendamento 1000 | PENDENTE |
+| 1002 | 1008 | CRIACAO | Agendamento 1001 | ENVIADO |
+| 1003 | 1009 | OFERTA | Oferta 1003 | ENVIADO |
+| 1004 | 1009 | CANCELAMENTO | Agendamento 1004 | CANCELADO |
+| 1005 | 1007 | OFERTA | Oferta 1000 | PENDENTE |
+
+Os itens `PENDENTE` usam `enviar_apos` futuro, para que o agendador de
+notificações não os processe durante a demonstração; o envio real permanece
+responsabilidade da aplicação.
+
 ## Invariantes respeitadas
 
 - `usuario`: coerência de perfil e vínculo (cliente sem filial/profissional;
@@ -403,13 +576,35 @@ de modo que a linha do tempo seja coerente. `autor_id`, `atendimento_id` e
 - `agendamento_evento`: `atendimento_id` e `autor_id` existentes, `tipo`
   coerente com a transição, `estado_novo` preenchido e `inicio_novo` igual ao
   horário resultante da ação.
+- `lista_espera`: status válido (`ATIVA`, `ATENDIDA`, `CANCELADA`, `EXPIRADA`),
+  `data_inicio <= data_fim`, coerência entre `hora_inicio`/`hora_fim` e no
+  máximo uma solicitação `ATIVA` por `(usuario_id, unidade_id, servico_id)`.
+- `lista_espera_evento` e `lista_espera_oferta`: referências existentes,
+  `estado_novo`/`status` válidos e unicidade de
+  `(lista_espera_id, profissional_id, inicio)` nas ofertas.
+- `atendimento.lista_espera_id`, quando presente, aponta para a solicitação que
+  originou o encaixe.
+- `notificacao_preferencia`: uma linha por usuário.
+- `notificacao_interna` e `notificacao_outbox`: `dedupe_key` único,
+  `estado`/`status` válido e referências coerentes com o agendamento ou a
+  oferta citada.
 
 ## Critérios de aceitação
 
-- Em um banco recém-migrado, a seed insere exatamente 1 estabelecimento, 2
-  filiais, 4 profissionais, 7 serviços, 10 vínculos serviço–profissional, 5
-  clientes, 10 contas, 40 intervalos de jornada, 3 exceções, 2 afastamentos, 3
-  feriados, 3 bloqueios, 14 atendimentos e 20 eventos de agendamento.
+- Em um banco recém-migrado, a seed insere exatamente 2 estabelecimentos, 4
+  filiais, 8 profissionais, 13 serviços, 19 vínculos serviço–profissional, 5
+  clientes, 16 contas, 80 intervalos de jornada, 3 exceções, 2 afastamentos, 3
+  feriados, 3 bloqueios, 41 atendimentos, 62 eventos de agendamento, 5
+  solicitações de lista de espera, 8 eventos de lista de espera, 4 ofertas, 3
+  preferências de notificação, 6 notificações internas e 6 itens de outbox.
+- A agenda cobre dias passados e futuros; os atendimentos `CONFIRMADO` no passado
+  aparecem no histórico do painel do cliente e nos relatórios, e os futuros
+  alimentam a agenda em calendário do profissional.
+- O atendimento de encaixe `1040` referencia a solicitação `1002` (`ATENDIDA`) e
+  aparece como encaixe no relatório operacional.
+- A lista de espera cobre os estados `ATIVA`, `ATENDIDA`, `EXPIRADA` e
+  `CANCELADA`, e as ofertas cobrem `ENVIADA`, `ACEITA`, `EXPIRADA` e
+  `INDISPONIVEL`, sem violar a unicidade de solicitação ativa nem de oferta.
 - Os três clientes vinculados apontam para as contas `CLIENTE` corretas e os
   avulsos têm `usuario_id` nulo; nenhum `usuario_id` é reutilizado.
 - Todo atendimento tem `servico_nome`, `preco_acordado` e
@@ -459,25 +654,44 @@ de modo que a linha do tempo seja coerente. `autor_id`, `atendimento_id` e
 - O atendimento `CANCELADO` foi mantido de propósito: ele não ocupa a agenda
   (não entra na restrição `EXCLUDE`) e serve para exercitar o histórico e a
   liberação de horário.
+- Um segundo estabelecimento com filiais próprias foi adicionado para exercitar
+  o isolamento por filial, a página pública de cada unidade e os relatórios sem
+  depender de dados reais.
+- A agenda inclui dias passados de propósito, pois o painel do cliente e os
+  relatórios operacionais dependem de histórico; sem isso, as telas só teriam
+  estados vazios ou poucos dias.
+- Os estados de lista de espera, ofertas e notificações são representados
+  diretamente no banco (sem chamar os serviços) e usam prazos futuros quando
+  `PENDENTE`/`ENVIADA`, para que os agendadores não alterem a demonstração.
+- Datas do histórico continuam relativas (`CURRENT_DATE - N`) para que a seed
+  não envelheça; ao rodar em outro dia, a janela de relatórios acompanha.
 
 ## Relação com outras SPECs
 
 - Depende de `2026-09-30-ambiente-de-desenvolvimento.md` para o Docker Compose,
   o container PostgreSQL e as portas locais.
 - Pressupõe o schema criado por todas as migrações Flyway até
-  `V12__agendamentos.sql`, incluindo
+  `V14__normalizar_unicidade_servico.sql`, incluindo
   `2026-09-30-autenticacao-e-controle-de-acesso.md`,
   `2026-09-30-estabelecimentos-filiais-profissionais-e-permissoes.md`,
   `2026-09-30-catalogo-de-servicos.md`, `2026-09-30-painel-profissional.md`,
-  `2026-10-01-jornada-folgas-feriados-e-bloqueios.md` e
-  `2026-10-01-agendamento-confirmacao-cancelamento-e-reagendamento.md`.
+  `2026-10-01-jornada-folgas-feriados-e-bloqueios.md`,
+  `2026-10-01-agendamento-confirmacao-cancelamento-e-reagendamento.md` e
+  `2026-10-01-lista-de-espera-encaixes-notificacoes-historico-e-relatorios-operacionais.md`
+  (migração `V13`).
 - A parte de agendamento respeita os snapshots, o vínculo `cliente.usuario_id`, o
   histórico `agendamento_evento` e a restrição `EXCLUDE` definidos em
   `2026-10-01-agendamento-confirmacao-cancelamento-e-reagendamento.md`, mas não
   exercita o fluxo de escrita dessa SPEC.
+- A lista de espera, as ofertas e as notificações respeitam os estados e as
+  invariantes de
+  `2026-10-01-lista-de-espera-encaixes-notificacoes-historico-e-relatorios-operacionais.md`,
+  sem executar os agendadores.
 - Serve de insumo para exercitar `2026-10-01-motor-de-disponibilidade.md`, o
-  painel profissional, a agenda operacional e "Meus agendamentos" da SPEC de
-  agendamento, além da navegação definida em
+  painel profissional, a agenda em calendário de
+  `2026-10-01-agenda-diaria-e-semanal-do-profissional.md`, o painel do cliente de
+  `2026-10-01-painel-do-cliente.md`, a agenda operacional e "Meus agendamentos"
+  da SPEC de agendamento, além da navegação definida em
   `2026-10-01-navegacao-visual-e-meu-perfil.md`.
 - Não altera o contrato HTTP nem regras de negócio: apenas popula dados válidos.
 
