@@ -8,6 +8,7 @@ import { AtivacaoComponent, CadastroComponent, ContaComponent, HomeComponent, Lo
   NovaSenhaComponent, RecuperacaoComponent, UsuariosAdminComponent } from './app/auth-pages';
 import { EstabelecimentoAdminComponent, FilialPublicaComponent } from './app/estabelecimento-pages';
 import { AgendaProfissionalComponent, MinhaFilialComponent } from './app/workspace-pages';
+import { AdministracaoAgendaComponent, MinhaDisponibilidadeComponent } from './app/disponibilidade-pages';
 
 const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -21,7 +22,11 @@ const routes: Routes = [
   { path: 'minha-filial', component: MinhaFilialComponent, canActivate: [internoGuard] },
   { path: 'profissional/agenda', component: AgendaProfissionalComponent,
     canActivate: [profissionalGuard] },
+  { path: 'profissional/disponibilidade', component: MinhaDisponibilidadeComponent,
+    canActivate: [profissionalGuard] },
   { path: 'administracao/usuarios', component: UsuariosAdminComponent, canActivate: [administradorGuard] },
+  { path: 'administracao/agenda', component: AdministracaoAgendaComponent,
+    canActivate: [administradorGuard] },
   { path: 'administracao/estabelecimento', component: EstabelecimentoAdminComponent,
     canActivate: [administradorGuard] },
   { path: 'unidades/:id', component: FilialPublicaComponent },

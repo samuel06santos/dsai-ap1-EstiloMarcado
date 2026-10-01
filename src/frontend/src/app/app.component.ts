@@ -118,6 +118,7 @@ export class AppComponent implements OnInit {
       ];
       case 'PROFISSIONAL': return [
         { texto: 'Minha agenda', icone: 'calendar', destino: '/profissional/agenda' },
+        { texto: 'Minha disponibilidade', icone: 'clock', destino: '/profissional/disponibilidade' },
         { texto: 'Minha filial', icone: 'building', destino: '/minha-filial' },
         { texto: 'Meu perfil', icone: 'user', destino: '/conta' }
       ];
@@ -130,6 +131,7 @@ export class AppComponent implements OnInit {
         { texto: 'Minha filial', icone: 'building', destino: '/administracao/estabelecimento', fragmento: 'filial' },
         { texto: 'Profissionais', icone: 'scissors', destino: '/administracao/estabelecimento', fragmento: 'profissionais' },
         { texto: 'Equipe', icone: 'users', destino: '/administracao/usuarios' },
+        { texto: 'Feriados e bloqueios', icone: 'clock', destino: '/administracao/agenda' },
         ...(this.adminPrincipal() ? [{ texto: 'Filiais', icone: 'building' as const,
           destino: '/administracao/estabelecimento', fragmento: 'filiais' }] : []),
         { texto: 'Meu perfil', icone: 'user', destino: '/conta' }

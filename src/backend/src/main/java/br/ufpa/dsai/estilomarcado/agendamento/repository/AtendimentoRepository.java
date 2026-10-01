@@ -15,4 +15,18 @@ public interface AtendimentoRepository extends JpaRepository<Atendimento, Long> 
      */
     List<Atendimento> findByProfissionalIdAndInicioGreaterThanEqualAndInicioLessThanOrderByInicioAsc(
             Long profissionalId, LocalDateTime inicio, LocalDateTime fim);
+
+    /**
+     * Atendimentos de um profissional a partir de um instante, em ordem
+     * crescente. Usado para verificar conflitos com atendimentos futuros.
+     */
+    List<Atendimento> findByProfissionalIdAndInicioGreaterThanEqualOrderByInicioAsc(
+            Long profissionalId, LocalDateTime inicio);
+
+    /**
+     * Atendimentos de todos os profissionais de uma filial dentro de um
+     * intervalo, em ordem crescente de horario.
+     */
+    List<Atendimento> findByProfissionalUnidadeIdAndInicioGreaterThanEqualAndInicioLessThanOrderByInicioAsc(
+            Long unidadeId, LocalDateTime inicio, LocalDateTime fim);
 }

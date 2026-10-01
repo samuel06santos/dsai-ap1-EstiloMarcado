@@ -2,6 +2,7 @@ package br.ufpa.dsai.estilomarcado.catalogo.api.exception;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import br.ufpa.dsai.estilomarcado.autenticacao.exception.CredenciaisInvalidasException;
 import br.ufpa.dsai.estilomarcado.autenticacao.exception.LimiteTentativasException;
 import br.ufpa.dsai.estilomarcado.autenticacao.exception.TokenInvalidoException;
+import br.ufpa.dsai.estilomarcado.disponibilidade.exception.ConflitoAtendimentoException;
+import br.ufpa.dsai.estilomarcado.disponibilidade.exception.ItemConflito;
 
 /**
  * Traduz excecoes do catalogo de servicos em respostas HTTP consistentes.
@@ -77,6 +80,13 @@ public class GlobalExceptionHandler {
                 .body(new ErroResponse(HttpStatus.CONFLICT.value(), ex.getMessage()));
     }
 
+    @ExceptionHandler(ConflitoAtendimentoException.class)
+    public ResponseEntity<ErroConflitoResponse> handleConflitoAtendimento(ConflitoAtendimentoException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErroConflitoResponse(HttpStatus.CONFLICT.value(), ex.getMessage(),
+                        ex.getConflitos(), Instant.now()));
+    }
+
     @ExceptionHandler(RegraDeNegocioException.class)
     public ResponseEntity<ErroResponse> handleRegraDeNegocio(RegraDeNegocioException ex) {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
@@ -92,6 +102,10 @@ public class GlobalExceptionHandler {
         ErroResponse resposta = new ErroResponse(HttpStatus.BAD_REQUEST.value(),
                 "requisicao invalida", campos);
         return ResponseEntity.badRequest().body(resposta);
+    }
+
+    public record ErroConflitoResponse(int status, String mensagem, List<ItemConflito> conflitos,
+                                       Instant timestamp) {
     }
 
     public record ErroResponse(int status, String mensagem, Map<String, String> campos, Instant timestamp) {
