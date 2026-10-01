@@ -86,8 +86,12 @@ relatórios operacionais e o painel do cliente tenham dados representativos.
 2. **Idempotente.** Executar a seed repetidas vezes produz o mesmo estado, sem
    duplicar registros.
 3. **Isolada por faixa de IDs.** Todos os registros mock usam a faixa reservada
-   `1000+` e o estabelecimento `Estilo Marcado (Mock)`. Assim a seed não colide
-   com dados reais ou criados manualmente no ambiente de desenvolvimento.
+   `1000+` e estabelecimentos próprios. Como a sequência de IDs é compartilhada
+   com a aplicação, um ID da faixa pode já pertencer a um dado real (por exemplo,
+   serviços criados pela revisão de catálogo); por isso a seed escolhe IDs livres
+   no momento da escrita e nunca sobrescreve um registro existente que não seja
+   da própria seed. Os novos serviços usam `1020+` e as novas contas `1030+`
+   justamente para ficar acima do que já existe.
 4. **Atômica.** Toda a inserção ocorre em uma única transação
    (`BEGIN`/`COMMIT`); qualquer erro aborta o conjunto.
 5. **Somente desenvolvimento.** As contas usam domínio fictício
@@ -274,12 +278,12 @@ semanal").
 | 1004 | Corte Masculino | 1001 | 30 min | R$ 45,00 | 10 min | 1002, 1003 |
 | 1005 | Manicure | 1001 | 45 min | R$ 50,00 | 10 min | 1002 |
 | 1006 | Hidratação | 1001 | 40 min | R$ 70,00 | 10 min | 1002, 1003 |
-| 1007 | Corte Masculino | 1002 | 30 min | R$ 45,00 | 10 min | 1004, 1005 |
-| 1008 | Corte Feminino | 1002 | 60 min | R$ 85,00 | 10 min | 1004 |
-| 1009 | Barba | 1002 | 30 min | R$ 35,00 | 10 min | 1005 |
-| 1010 | Corte Masculino | 1003 | 30 min | R$ 45,00 | 10 min | 1006, 1007 |
-| 1011 | Manicure | 1003 | 45 min | R$ 50,00 | 10 min | 1006 |
-| 1012 | Hidratação | 1003 | 40 min | R$ 70,00 | 10 min | 1006, 1007 |
+| 1020 | Corte Masculino | 1002 | 30 min | R$ 45,00 | 10 min | 1004, 1005 |
+| 1021 | Corte Feminino | 1002 | 60 min | R$ 85,00 | 10 min | 1004 |
+| 1022 | Barba | 1002 | 30 min | R$ 35,00 | 10 min | 1005 |
+| 1023 | Corte Masculino | 1003 | 30 min | R$ 45,00 | 10 min | 1006, 1007 |
+| 1024 | Manicure | 1003 | 45 min | R$ 50,00 | 10 min | 1006 |
+| 1025 | Hidratação | 1003 | 40 min | R$ 70,00 | 10 min | 1006, 1007 |
 
 O índice `uk_servico_unidade_nome_normalizado` (migração `V14`) garante que o
 nome é único por filial sem diferenciar maiúsculas nem espaços de borda; por
@@ -322,12 +326,12 @@ domínio fictício `@estilomarcado.dev`.
 | 1007 | Cliente Demo | `cliente@estilomarcado.dev` | CLIENTE | — | — |
 | 1008 | João Pereira | `joao.pereira@estilomarcado.dev` | CLIENTE | — | — |
 | 1009 | Maria Oliveira | `maria.oliveira@estilomarcado.dev` | CLIENTE | — | — |
-| 1010 | Fernanda Alves | `fernanda.alves@estilomarcado.dev` | PROFISSIONAL | 1002 | 1004 |
-| 1011 | Rafael Nunes | `rafael.nunes@estilomarcado.dev` | PROFISSIONAL | 1002 | 1005 |
-| 1012 | Patrícia Gomes | `patricia.gomes@estilomarcado.dev` | PROFISSIONAL | 1003 | 1006 |
-| 1013 | Lucas Barros | `lucas.barros@estilomarcado.dev` | PROFISSIONAL | 1003 | 1007 |
-| 1014 | Administração Nazaré | `admin.nazare@estilomarcado.dev` | ADMINISTRADOR | 1002 | — |
-| 1015 | Recepção Umarizal | `recepcao.umarizal@estilomarcado.dev` | RECEPCAO | 1003 | — |
+| 1030 | Fernanda Alves | `fernanda.alves@estilomarcado.dev` | PROFISSIONAL | 1002 | 1004 |
+| 1031 | Rafael Nunes | `rafael.nunes@estilomarcado.dev` | PROFISSIONAL | 1002 | 1005 |
+| 1032 | Patrícia Gomes | `patricia.gomes@estilomarcado.dev` | PROFISSIONAL | 1003 | 1006 |
+| 1033 | Lucas Barros | `lucas.barros@estilomarcado.dev` | PROFISSIONAL | 1003 | 1007 |
+| 1034 | Administração Nazaré | `admin.nazare@estilomarcado.dev` | ADMINISTRADOR | 1002 | — |
+| 1035 | Recepção Umarizal | `recepcao.umarizal@estilomarcado.dev` | RECEPCAO | 1003 | — |
 
 Contas de cliente respeitam a regra de vínculo (sem filial e sem profissional);
 contas internas têm filial; contas de profissional têm filial e vínculo
@@ -458,27 +462,27 @@ para o histórico.
 | 1016 | 1001 | 1002 | 1002 | `-2` | 10:30 | CONFIRMADO |
 | 1017 | 1002 | 1005 | 1004 | `-5` | 08:30 | CONFIRMADO |
 | 1018 | 1003 | 1004 | 1000 | `-2` | 10:00 | CONFIRMADO |
-| 1019 | 1004 | 1008 | 1000 | `-12` | 14:00 | CONFIRMADO |
-| 1020 | 1004 | 1008 | 1000 | `+1` | 09:00 | CONFIRMADO |
-| 1021 | 1004 | 1007 | 1001 | `+1` | 10:30 | AGENDADO |
-| 1022 | 1004 | 1008 | 1002 | `+1` | 14:00 | AGENDADO |
-| 1023 | 1004 | 1007 | 1003 | `+2` | 11:00 | AGENDADO |
-| 1024 | 1005 | 1009 | 1003 | `-6` | 15:30 | CONFIRMADO |
-| 1025 | 1005 | 1007 | 1000 | `-6` | 16:30 | CONFIRMADO |
-| 1026 | 1005 | 1009 | 1001 | `+1` | 10:30 | AGENDADO |
-| 1027 | 1005 | 1007 | 1000 | `+1` | 15:00 | CONFIRMADO |
-| 1028 | 1005 | 1007 | 1002 | `+2` | 10:00 | AGENDADO |
-| 1029 | 1006 | 1012 | 1002 | `-4` | 08:30 | CONFIRMADO |
-| 1030 | 1006 | 1011 | 1003 | `-4` | 13:30 | CONFIRMADO |
-| 1031 | 1006 | 1011 | 1002 | `+1` | 08:30 | CONFIRMADO |
-| 1032 | 1006 | 1010 | 1003 | `+1` | 10:00 | AGENDADO |
-| 1033 | 1006 | 1012 | 1000 | `+1` | 13:30 | AGENDADO |
-| 1034 | 1006 | 1011 | 1001 | `+2` | 09:00 | AGENDADO |
-| 1035 | 1007 | 1012 | 1003 | `-3` | 14:00 | CONFIRMADO |
-| 1036 | 1007 | 1010 | 1000 | `-3` | 17:00 | CONFIRMADO |
-| 1037 | 1007 | 1010 | 1001 | `+1` | 10:30 | AGENDADO |
-| 1038 | 1007 | 1012 | 1000 | `+1` | 14:30 | AGENDADO |
-| 1039 | 1007 | 1010 | 1002 | `+2` | 16:00 | AGENDADO |
+| 1019 | 1004 | 1021 | 1000 | `-12` | 14:00 | CONFIRMADO |
+| 1020 | 1004 | 1021 | 1000 | `+1` | 09:00 | CONFIRMADO |
+| 1021 | 1004 | 1020 | 1001 | `+1` | 10:30 | AGENDADO |
+| 1022 | 1004 | 1021 | 1002 | `+1` | 14:00 | AGENDADO |
+| 1023 | 1004 | 1020 | 1003 | `+2` | 11:00 | AGENDADO |
+| 1024 | 1005 | 1022 | 1003 | `-6` | 15:30 | CONFIRMADO |
+| 1025 | 1005 | 1020 | 1000 | `-6` | 16:30 | CONFIRMADO |
+| 1026 | 1005 | 1022 | 1001 | `+1` | 10:30 | AGENDADO |
+| 1027 | 1005 | 1020 | 1000 | `+1` | 15:00 | CONFIRMADO |
+| 1028 | 1005 | 1020 | 1002 | `+2` | 10:00 | AGENDADO |
+| 1029 | 1006 | 1025 | 1002 | `-4` | 08:30 | CONFIRMADO |
+| 1030 | 1006 | 1024 | 1003 | `-4` | 13:30 | CONFIRMADO |
+| 1031 | 1006 | 1024 | 1002 | `+1` | 08:30 | CONFIRMADO |
+| 1032 | 1006 | 1023 | 1003 | `+1` | 10:00 | AGENDADO |
+| 1033 | 1006 | 1025 | 1000 | `+1` | 13:30 | AGENDADO |
+| 1034 | 1006 | 1024 | 1001 | `+2` | 09:00 | AGENDADO |
+| 1035 | 1007 | 1025 | 1003 | `-3` | 14:00 | CONFIRMADO |
+| 1036 | 1007 | 1023 | 1000 | `-3` | 17:00 | CONFIRMADO |
+| 1037 | 1007 | 1023 | 1001 | `+1` | 10:30 | AGENDADO |
+| 1038 | 1007 | 1025 | 1000 | `+1` | 14:30 | AGENDADO |
+| 1039 | 1007 | 1023 | 1002 | `+2` | 16:00 | AGENDADO |
 | 1040 | 1002 | 1005 | 1002 | `+1` | 15:00 | AGENDADO (encaixe) |
 
 O atendimento `1040` é o resultado do encaixe da lista de espera `1002`: nasce
