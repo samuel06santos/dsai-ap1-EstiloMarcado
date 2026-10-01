@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -185,6 +186,39 @@ class PainelProfissionalIntegrationTest {
         profissionalRepository.save(profissional);
         mockMvc.perform(get("/api/painel/agenda?data=2026-10-01").cookie(profissionalSessao))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void rotaDeAgendaPorIntervaloOrdenaECalculaFim() throws Exception {
+        agendar(profissional, LocalDateTime.of(2026, 10, 2, 14, 0), AtendimentoStatus.CONFIRMADO);
+        agendar(profissional, LocalDateTime.of(2026, 10, 1, 9, 0), AtendimentoStatus.CONFIRMADO);
+        agendar(outroProfissional, LocalDateTime.of(2026, 10, 1, 10, 0), AtendimentoStatus.CONFIRMADO);
+        var sessao = login(profissional, PerfilUsuario.PROFISSIONAL);
+
+        mockMvc.perform(get("/api/painel/agenda?de=2026-10-01&ate=2026-10-07").cookie(sessao))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].inicio").value("2026-10-01T09:00:00"))
+                .andExpect(jsonPath("$[0].fim").value("2026-10-01T09:30:00"))
+                .andExpect(jsonPath("$[1].inicio").value("2026-10-02T14:00:00"))
+                .andExpect(jsonPath("$[1].fim").value("2026-10-02T14:30:00"));
+    }
+
+    @Test
+    void rotaDeAgendaRejeitaParametrosInvalidos() throws Exception {
+        var sessao = login(profissional, PerfilUsuario.PROFISSIONAL);
+
+        mockMvc.perform(get("/api/painel/agenda").cookie(sessao))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/painel/agenda?de=2026-10-01").cookie(sessao))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/painel/agenda?de=2026-10-02&ate=2026-10-01").cookie(sessao))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/painel/agenda?de=2026-10-01&ate=2026-12-31").cookie(sessao))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/painel/agenda?data=2026-10-01&de=2026-10-01&ate=2026-10-01").cookie(sessao))
+                .andExpect(status().isBadRequest());
     }
 
     private jakarta.servlet.http.Cookie login(Profissional vinculo, PerfilUsuario perfil) throws Exception {

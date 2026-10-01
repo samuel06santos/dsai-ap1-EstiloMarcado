@@ -272,3 +272,69 @@ textarea { min-height: 6rem; resize: vertical; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+
+/* Agenda em calendario: mes, semana e dia */
+.calendario { display: grid; gap: 1rem; }
+.cal-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }
+.cal-visoes { display: inline-flex; gap: .35rem; }
+.cal-visoes .is-active { color: white; background: var(--wine); box-shadow: 0 9px 22px rgb(103 45 62 / 18%); }
+.cal-navegacao { display: flex; align-items: center; gap: .5rem; }
+.cal-periodo { font-weight: 700; min-width: 11rem; text-align: center; }
+
+.cal-mes { background: white; border: 1px solid #e8dedb; border-radius: 1rem; overflow: hidden; }
+.cal-semana-cabecalho { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); background: var(--soft);
+  font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
+.cal-semana-cabecalho span { padding: .5rem; text-align: center; }
+.cal-mes-corpo { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal-celula { display: grid; align-content: start; gap: .2rem; min-height: 84px; padding: .45rem .5rem;
+  border: 0; border-top: 1px solid #f0e7e4; border-right: 1px solid #f0e7e4; background: white; text-align: left;
+  cursor: pointer; color: inherit; font: inherit; }
+.cal-celula:hover { background: var(--soft); }
+.cal-celula.fora-do-mes { color: #b3a6a3; background: #fdfbfa; }
+.cal-celula.is-selecionado { box-shadow: inset 0 0 0 2px var(--wine); background: #fdf6f4; }
+.cal-celula.is-hoje .cal-celula-numero { background: var(--wine); color: white; border-radius: 999px; padding: 0 .4rem; }
+.cal-celula-numero { font-weight: 700; font-size: .9rem; justify-self: start; }
+.cal-celula-total { font-size: .66rem; color: var(--muted); }
+.cal-pontos { display: flex; gap: .2rem; }
+.cal-ponto { width: .5rem; height: .5rem; border-radius: 999px; display: inline-block; background: #cdbfba; }
+.cal-ponto.estado-agendado, .cal-bloco.estado-agendado { background: #f0dcae; }
+.cal-ponto.estado-confirmado, .cal-bloco.estado-confirmado { background: #d9ecdf; }
+.cal-ponto.estado-cancelado, .cal-bloco.estado-cancelado { background: #f2dadd; }
+.cal-bloco.estado-cancelado { text-decoration: line-through; opacity: .75; }
+
+.cal-semana { display: grid; grid-template-columns: 3.2rem repeat(7, minmax(0, 1fr)); background: white;
+  border: 1px solid #e8dedb; border-radius: 1rem; overflow: hidden; }
+.cal-horas-cabecalho { background: #faf7f5; }
+.cal-coluna-cabecalho { padding: .45rem; border: 0; border-left: 1px solid #f0e7e4; background: #faf7f5;
+  display: grid; justify-items: center; gap: .1rem; cursor: pointer; font: inherit; font-size: .72rem; color: var(--muted); }
+.cal-coluna-cabecalho.is-hoje { color: var(--wine); font-weight: 700; }
+.cal-coluna-cabecalho.is-selecionado { background: #f4e6e2; color: var(--wine); }
+.cal-horas { display: grid; align-content: start; }
+.cal-hora { font-size: .66rem; color: var(--muted); text-align: right; padding: 0 .4rem 0 0;
+  border-top: 1px solid #f3ece9; box-sizing: border-box; line-height: 1; }
+.cal-coluna { position: relative; border-left: 1px solid #f0e7e4;
+  background-image: linear-gradient(#f6efec 1px, transparent 1px); background-size: 100% 48px; }
+.cal-bloco { position: absolute; left: 2px; right: 2px; display: grid; gap: .1rem; align-content: start;
+  padding: .2rem .35rem; border: 0; border-radius: .45rem; font: inherit; font-size: .66rem; text-align: left;
+  cursor: pointer; overflow: hidden; color: var(--ink); box-shadow: 0 2px 6px rgb(75 29 43 / 12%); }
+.cal-bloco span { color: rgb(45 38 39 / 70%); }
+.cal-bloco strong { font-weight: 600; }
+
+.cal-dia { display: grid; gap: .5rem; }
+.cal-dia-item { display: grid; grid-template-columns: 7rem 1fr auto; align-items: center; gap: .75rem;
+  padding: .7rem .9rem; border: 1px solid #eee4e1; border-radius: .8rem; background: white; text-align: left;
+  cursor: pointer; font: inherit; color: inherit; }
+.cal-dia-item:hover { background: var(--soft); }
+.cal-dia-item.is-cancelled { opacity: .65; }
+.cal-dia-hora { font-weight: 700; font-size: .85rem; }
+.cal-dia-texto { display: grid; }
+.cal-dia-texto small { color: var(--muted); }
+.status-chip.estado-agendado { background: #f0dcae; }
+.status-chip.estado-confirmado { background: #d9ecdf; }
+.status-chip.estado-cancelado { background: #f2dadd; }
+
+@media (max-width: 767px) {
+  .cal-celula { min-height: 62px; }
+  .cal-dia-item { grid-template-columns: 1fr auto; }
+  .cal-dia-hora { grid-column: 1 / -1; }
+}

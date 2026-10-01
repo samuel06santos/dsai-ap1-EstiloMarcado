@@ -83,6 +83,14 @@ public interface AtendimentoRepository extends JpaRepository<Atendimento, Long> 
             Long profissionalId, LocalDateTime inicio, LocalDateTime fim);
 
     /**
+     * Atendimentos de um profissional dentro de um intervalo, em ordem crescente
+     * de horario e de identificador para desempate. Alimenta a agenda em
+     * calendario (dia, semana e mes).
+     */
+    List<Atendimento> findByProfissionalIdAndInicioGreaterThanEqualAndInicioLessThanOrderByInicioAscIdAsc(
+            Long profissionalId, LocalDateTime inicio, LocalDateTime fim);
+
+    /**
      * Atendimentos de um profissional a partir de um instante, em ordem
      * crescente. Usado para verificar conflitos com atendimentos futuros.
      */

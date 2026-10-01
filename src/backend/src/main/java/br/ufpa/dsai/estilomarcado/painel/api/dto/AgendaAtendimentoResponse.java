@@ -10,6 +10,7 @@ import br.ufpa.dsai.estilomarcado.agendamento.model.Atendimento;
 public record AgendaAtendimentoResponse(
         Long id,
         LocalDateTime inicio,
+        LocalDateTime fim,
         String servico,
         String cliente,
         String status) {
@@ -18,6 +19,7 @@ public record AgendaAtendimentoResponse(
         return new AgendaAtendimentoResponse(
                 atendimento.getId(),
                 atendimento.getInicio(),
+                atendimento.getInicio().plusMinutes(atendimento.getDuracaoMinutos()),
                 atendimento.getServico().getNome(),
                 atendimento.getCliente().getNome(),
                 atendimento.getStatus().name());

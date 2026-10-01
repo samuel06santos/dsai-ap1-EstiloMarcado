@@ -1,18 +1,11 @@
-import { HttpClient } from '@angular/common/http';
 import { Component, inject, OnInit, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
+import { AgendaItem, AgendaProfissionalApi } from './agenda-profissional.service';
 import { AuthService, MeuPerfil } from './auth.service';
+import { CalendarioAgendaComponent, VisaoAgenda } from './calendario-agenda.component';
 import { EstabelecimentoService, Filial } from './estabelecimento.service';
 import { UiIconComponent } from './ui-icon.component';
-
-interface AtendimentoAgenda {
-  id: number;
-  inicio: string;
-  servico: string;
-  cliente: string;
-  status: string;
-}
 
 @Component({
   standalone: true,
@@ -67,72 +60,128 @@ export class MinhaFilialComponent implements OnInit {
 
 @Component({
   standalone: true,
-  imports: [UiIconComponent],
+  imports: [UiIconComponent, CalendarioAgendaComponent],
   template: `
     <section class="page-stack">
       <div class="page-heading"><p class="eyebrow">Área profissional</p><h1>Minha agenda</h1>
-        <p>Atendimentos atribuídos a você, organizados por dia e horário.</p></div>
-      <div class="surface-panel agenda-panel">
-        <div class="agenda-toolbar">
-          <div><span class="toolbar-label">Dia selecionado</span><h2>{{ diaLegivel() }}</h2></div>
-          <div class="toolbar-actions">
-            <button class="icon-button" type="button" aria-label="Dia anterior" (click)="mudarDia(-1)">‹</button>
-            <button class="button ghost" type="button" (click)="voltarHoje()">Hoje</button>
-            <button class="icon-button" type="button" aria-label="Próximo dia" (click)="mudarDia(1)">›</button>
-          </div>
-        </div>
-        @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
+        <p>Visões diária, semanal e mensal dos seus atendimentos. Clique em um dia para ver os detalhes.</p></div>
+      @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
+      <app-calendario-agenda
+        [itens]="itens()" [visao]="visao()" [diaSelecionado]="dia()" [carregando]="carregando()"
+        (visaoChange)="trocarVisao($event)"
+        (diaSelecionadoChange)="selecionarDia($event)"
+        (intervaloChange)="carregar($event.de, $event.ate)"
+        (itemSelecionado)="abrirItem($event)" />
+      <article class="surface-panel section-card">
+        <div class="section-title"><div><p class="eyebrow">Dia selecionado</p>
+          <h2>{{ rotuloDia() }}</h2></div><app-icon name="calendar" /></div>
         @if (carregando()) { <p class="muted-copy" role="status">Carregando agenda…</p> }
-        @else if (!atendimentos().length) {
+        @else if (!itensDoDia().length) {
           <div class="empty-state"><span class="panel-icon"><app-icon name="calendar" /></span>
-            <h3>Nenhum atendimento neste dia</h3><p>Use as setas para consultar outra data.</p></div>
+            <h3>Nenhum atendimento neste dia</h3><p>Escolha outra data no calendário.</p></div>
         } @else {
           <div class="agenda-list">
-            @for (item of atendimentos(); track item.id) {
+            @for (item of itensDoDia(); track item.id) {
               <article class="agenda-item" [class.is-cancelled]="item.status === 'CANCELADO'">
-                <div class="agenda-time"><app-icon name="clock" /><strong>{{ item.inicio.slice(11, 16) }}</strong></div>
+                <div class="agenda-time"><app-icon name="clock" />
+                  <strong>{{ item.inicio.slice(11, 16) }}–{{ item.fim.slice(11, 16) }}</strong></div>
                 <div><h3>{{ item.servico }}</h3><p>{{ item.cliente }}</p></div>
                 <span class="status-chip">{{ nomeStatus(item.status) }}</span>
               </article>
             }
           </div>
         }
-      </div>
+        <p class="muted-copy">Horários no fuso da filial: {{ fuso() }}.</p>
+        @if (itemSelecionado(); as item) {
+          <div class="content-card" role="status">
+            <h3>Atendimento #{{ item.id }}</h3>
+            <p><strong>{{ item.servico }}</strong> · {{ item.cliente }}</p>
+            <p>{{ item.inicio.slice(0, 10).split('-').reverse().join('/') }}
+              · {{ item.inicio.slice(11, 16) }}–{{ item.fim.slice(11, 16) }} ({{ fuso() }})</p>
+            <span class="status-chip">{{ nomeStatus(item.status) }}</span>
+          </div>
+        }
+      </article>
     </section>
   `
 })
 export class AgendaProfissionalComponent implements OnInit {
-  private readonly http = inject(HttpClient);
-  readonly dia = signal(this.isoLocal(new Date()));
-  readonly atendimentos = signal<AtendimentoAgenda[]>([]);
+  private readonly api = inject(AgendaProfissionalApi);
+  private readonly estabelecimento = inject(EstabelecimentoService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+
+  readonly itens = signal<AgendaItem[]>([]);
+  readonly visao = signal<VisaoAgenda>('SEMANA');
+  readonly dia = signal(this.hoje());
   readonly carregando = signal(false);
   readonly erro = signal('');
+  readonly fuso = signal('America/Sao_Paulo');
+  readonly itemSelecionado = signal<AgendaItem | null>(null);
 
-  ngOnInit(): void { this.carregar(); }
-  diaLegivel(): string {
-    return new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-      .format(new Date(`${this.dia()}T12:00:00`));
+  ngOnInit(): void {
+    const params = this.route.snapshot.queryParamMap;
+    const dataParam = params.get('data');
+    if (dataParam && /^\d{4}-\d{2}-\d{2}$/.test(dataParam)) { this.dia.set(dataParam); }
+    const visaoParam = (params.get('visao') ?? '').toUpperCase();
+    if (visaoParam === 'MES' || visaoParam === 'SEMANA' || visaoParam === 'DIA') {
+      this.visao.set(visaoParam as VisaoAgenda);
+    } else if (typeof window !== 'undefined' && window.innerWidth <= 767) {
+      this.visao.set('DIA');
+    }
+    this.estabelecimento.minhaFilial().subscribe({
+      next: filial => this.fuso.set(filial.fusoHorario), error: () => { }
+    });
   }
-  mudarDia(dias: number): void {
-    const data = new Date(`${this.dia()}T12:00:00`);
-    data.setDate(data.getDate() + dias);
-    this.dia.set(this.isoLocal(data));
-    this.carregar();
+
+  carregar(de: string, ate: string): void {
+    this.carregando.set(true);
+    this.erro.set('');
+    this.api.agendaDoIntervalo(de, ate).subscribe({
+      next: itens => { this.itens.set(itens); this.carregando.set(false); },
+      error: error => { this.itens.set([]); this.erro.set(AuthService.mensagemErro(error));
+        this.carregando.set(false); }
+    });
   }
-  voltarHoje(): void { this.dia.set(this.isoLocal(new Date())); this.carregar(); }
+
+  trocarVisao(visao: VisaoAgenda): void { this.visao.set(visao); this.atualizarUrl(); }
+
+  selecionarDia(dia: string): void {
+    this.dia.set(dia);
+    this.itemSelecionado.set(null);
+    this.atualizarUrl();
+  }
+
+  abrirItem(item: AgendaItem): void { this.itemSelecionado.set(item); }
+
+  itensDoDia(): AgendaItem[] {
+    return this.itens().filter(item => item.inicio.slice(0, 10) === this.dia());
+  }
+
+  rotuloDia(): string {
+    return this.capitalizar(new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric',
+      month: 'long', year: 'numeric' }).format(new Date(`${this.dia()}T12:00:00`)));
+  }
+
   nomeStatus(status: string): string {
     return { AGENDADO: 'Agendado', CONFIRMADO: 'Confirmado', CANCELADO: 'Cancelado' }[status] ?? status;
   }
-  private carregar(): void {
-    this.carregando.set(true); this.erro.set('');
-    this.http.get<AtendimentoAgenda[]>('/api/painel/agenda', { params: { data: this.dia() } })
-      .subscribe({
-        next: itens => { this.atendimentos.set(itens); this.carregando.set(false); },
-        error: error => { this.atendimentos.set([]); this.erro.set(AuthService.mensagemErro(error));
-          this.carregando.set(false); }
-      });
+
+  private atualizarUrl(): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { data: this.dia(), visao: this.visao().toLowerCase() },
+      replaceUrl: true
+    });
   }
-  private isoLocal(data: Date): string {
-    return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`;
+
+  private hoje(): string {
+    const agora = new Date();
+    return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-` +
+      `${String(agora.getDate()).padStart(2, '0')}`;
+  }
+
+  private capitalizar(texto: string): string {
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
   }
 }
