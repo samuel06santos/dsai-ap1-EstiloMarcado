@@ -2,14 +2,14 @@
 
 > Plataforma de agendamento e gestao para saloes de beleza e barbearias.
 
-## O que e
+## O que e?
 
 O **Estilo Marcado** e uma aplicacao web para organizar a rotina de saloes de
 beleza e barbearias. Ela conecta clientes, profissionais e administradores em
 um unico sistema, reduzindo conflitos de horario e facilitando o acompanhamento
 dos atendimentos.
 
-## Para que serve
+## Para que serve?
 
 O sistema será usado para que clientes encontrem serviços e horários
 disponíveis, realizem agendamentos e acompanhem seus próximos atendimentos. Do
@@ -47,7 +47,7 @@ agenda, os horários de trabalho e a disponibilidade de cada serviço.
 As tecnologias e versoes efetivamente utilizadas serao atualizadas nesta secao
 quando a implementacao for iniciada.
 
-## Como rodar
+## Como rodar?
 
 Com Docker Desktop em execucao, copie o arquivo de exemplo e inicie os
 servicos:
