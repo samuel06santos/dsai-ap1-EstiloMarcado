@@ -1,18 +1,19 @@
 -- =============================================================================
 -- Estilo Marcado - Seed de dados mock (SOMENTE DESENVOLVIMENTO)
 -- =============================================================================
--- Popula o banco com estabelecimento, filiais, profissionais, servicos,
+-- Popula o banco com estabelecimentos, filiais, profissionais, servicos,
 -- contas de acesso, fichas de cliente (vinculadas ou avulsas), jornadas,
--- folgas, feriados, bloqueios, atendimentos e o historico de agendamento.
+-- folgas, feriados, bloqueios, atendimentos (historico e futuros), historico de
+-- agendamento, lista de espera, ofertas de encaixe e notificacoes.
 --
 -- COMO FUNCIONA
---   * Todos os registros usam a faixa de IDs reservada 1000+ e o
---     estabelecimento "Estilo Marcado (Mock)". Assim a seed nunca colide com
---     dados reais/ja existentes do ambiente de desenvolvimento.
+--   * Todos os registros usam a faixa de IDs reservada 1000+ e os
+--     estabelecimentos "Estilo Marcado (Mock)" e "Studio Bella (Mock)". Assim a
+--     seed nunca colide com dados reais/ja existentes.
 --   * E idempotente: pode rodar varias vezes sem duplicar registros. As colunas
 --     de agendamento dos registros mock sao convergidas em bancos que ja
---     receberam uma versao anterior da seed.
---   * Pressupoe o schema ate a migracao V12 (agendamentos).
+--     receberam versoes anteriores da seed.
+--   * Pressupoe o schema ate a migracao V14.
 --   * Para comecar do zero, use a opcao de reset do script
 --     (scripts/seed.ps1 -Reset ou scripts/seed.sh --reset), que limpa todos os
 --     dados de dominio (nao apaga as migracoes do Flyway).
@@ -21,10 +22,16 @@
 --   admin@estilomarcado.dev             ADMINISTRADOR  (Unidade Centro)
 --   recepcao@estilomarcado.dev          RECEPCAO       (Unidade Centro)
 --   admin.batista@estilomarcado.dev     ADMINISTRADOR  (Unidade Batista Campos)
+--   admin.nazare@estilomarcado.dev      ADMINISTRADOR  (Unidade Nazare)
+--   recepcao.umarizal@estilomarcado.dev RECEPCAO       (Unidade Umarizal)
 --   ana.souza@estilomarcado.dev         PROFISSIONAL   (Ana Souza)
 --   carlos.lima@estilomarcado.dev       PROFISSIONAL   (Carlos Lima)
 --   beatriz.rocha@estilomarcado.dev     PROFISSIONAL   (Beatriz Rocha)
 --   diego.mendes@estilomarcado.dev      PROFISSIONAL   (Diego Mendes)
+--   fernanda.alves@estilomarcado.dev    PROFISSIONAL   (Fernanda Alves)
+--   rafael.nunes@estilomarcado.dev      PROFISSIONAL   (Rafael Nunes)
+--   patricia.gomes@estilomarcado.dev    PROFISSIONAL   (Patricia Gomes)
+--   lucas.barros@estilomarcado.dev      PROFISSIONAL   (Lucas Barros)
 --   cliente@estilomarcado.dev           CLIENTE
 --   joao.pereira@estilomarcado.dev      CLIENTE
 --   maria.oliveira@estilomarcado.dev    CLIENTE
@@ -35,10 +42,11 @@
 BEGIN;
 
 -- ----------------------------------------------------------------------------
--- Estabelecimento e filiais (faixa 1000+)
+-- Estabelecimentos e filiais (faixa 1000+)
 -- ----------------------------------------------------------------------------
 INSERT INTO estabelecimento (id, nome) VALUES
-    (1000, 'Estilo Marcado (Mock)')
+    (1000, 'Estilo Marcado (Mock)'),
+    (1001, 'Studio Bella (Mock)')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO unidade (id, nome, nome_normalizado, estabelecimento_id, principal,
@@ -46,7 +54,11 @@ INSERT INTO unidade (id, nome, nome_normalizado, estabelecimento_id, principal,
     (1000, 'Unidade Centro', 'unidade centro', 1000, TRUE,
      'Av. Presidente Vargas, 1200 - Belem/PA', '(91) 3222-1000', 'America/Sao_Paulo', TRUE),
     (1001, 'Unidade Batista Campos', 'unidade batista campos', 1000, FALSE,
-     'Rua dos Mundurucus, 2450 - Belem/PA', '(91) 3222-2000', 'America/Sao_Paulo', TRUE)
+     'Rua dos Mundurucus, 2450 - Belem/PA', '(91) 3222-2000', 'America/Sao_Paulo', TRUE),
+    (1002, 'Unidade Nazare', 'unidade nazare', 1001, TRUE,
+     'Tv. Quintino Bocaiuva, 780 - Belem/PA', '(91) 3223-3000', 'America/Sao_Paulo', TRUE),
+    (1003, 'Unidade Umarizal', 'unidade umarizal', 1001, FALSE,
+     'Rua Domingos Marreiros, 1500 - Belem/PA', '(91) 3223-4000', 'America/Sao_Paulo', TRUE)
 ON CONFLICT DO NOTHING;
 
 -- ----------------------------------------------------------------------------
@@ -56,7 +68,11 @@ INSERT INTO profissional (id, nome, ativo, unidade_id, apresentacao) VALUES
     (1000, 'Ana Souza', TRUE, 1000, 'Especialista em cortes e coloracao.'),
     (1001, 'Carlos Lima', TRUE, 1000, 'Barbeiro e especialista em barba.'),
     (1002, 'Beatriz Rocha', TRUE, 1001, 'Cabeleireira e manicure.'),
-    (1003, 'Diego Mendes', TRUE, 1001, 'Barbeiro e designer de sobrancelha.')
+    (1003, 'Diego Mendes', TRUE, 1001, 'Barbeiro e designer de sobrancelha.'),
+    (1004, 'Fernanda Alves', TRUE, 1002, 'Cabeleireira e colorista.'),
+    (1005, 'Rafael Nunes', TRUE, 1002, 'Barbeiro e especialista em barba.'),
+    (1006, 'Patricia Gomes', TRUE, 1003, 'Manicure e cabeleireira.'),
+    (1007, 'Lucas Barros', TRUE, 1003, 'Barbeiro e terapeuta capilar.')
 ON CONFLICT DO NOTHING;
 
 -- ----------------------------------------------------------------------------
@@ -70,12 +86,20 @@ INSERT INTO servico (id, unidade_id, nome, descricao, duracao_minutos, preco,
     (1003, 1000, 'Coloracao', 'Coloracao completa com tratamento.', 120, 180.00, 15, TRUE),
     (1004, 1001, 'Corte Masculino', 'Corte masculino com finalizacao.', 30, 45.00, 10, TRUE),
     (1005, 1001, 'Manicure', 'Cuidado completo das unhas das maos.', 45, 50.00, 10, TRUE),
-    (1006, 1001, 'Hidratacao', 'Hidratacao profunda dos fios.', 40, 70.00, 10, TRUE)
+    (1006, 1001, 'Hidratacao', 'Hidratacao profunda dos fios.', 40, 70.00, 10, TRUE),
+    (1020, 1002, 'Corte Masculino', 'Corte masculino com finalizacao.', 30, 45.00, 10, TRUE),
+    (1021, 1002, 'Corte Feminino', 'Corte feminino com lavagem e escova.', 60, 85.00, 10, TRUE),
+    (1022, 1002, 'Barba', 'Aparo e modelagem de barba com toalha quente.', 30, 35.00, 10, TRUE),
+    (1023, 1003, 'Corte Masculino', 'Corte masculino com finalizacao.', 30, 45.00, 10, TRUE),
+    (1024, 1003, 'Manicure', 'Cuidado completo das unhas das maos.', 45, 50.00, 10, TRUE),
+    (1025, 1003, 'Hidratacao', 'Hidratacao profunda dos fios.', 40, 70.00, 10, TRUE)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO servico_profissional (servico_id, profissional_id) VALUES
     (1000, 1000), (1000, 1001), (1001, 1000), (1002, 1001), (1003, 1000),
-    (1004, 1002), (1004, 1003), (1005, 1002), (1006, 1002), (1006, 1003)
+    (1004, 1002), (1004, 1003), (1005, 1002), (1006, 1002), (1006, 1003),
+    (1020, 1004), (1020, 1005), (1021, 1004), (1022, 1005),
+    (1023, 1006), (1023, 1007), (1024, 1006), (1025, 1006), (1025, 1007)
 ON CONFLICT DO NOTHING;
 
 -- ----------------------------------------------------------------------------
@@ -114,7 +138,25 @@ INSERT INTO usuario (id, nome, email, email_normalizado, senha_hash, telefone_co
      'CLIENTE', 'ATIVA', NULL, NULL, CURRENT_TIMESTAMP),
     (1009, 'Maria Oliveira', 'maria.oliveira@estilomarcado.dev', 'maria.oliveira@estilomarcado.dev',
      '$2b$12$R94GRi/MWe4xPxCE4KKIGeo6mESFCnCcRNtrdL7t6P8MP6xDMN.bO', '(91) 98888-0010',
-     'CLIENTE', 'ATIVA', NULL, NULL, CURRENT_TIMESTAMP)
+     'CLIENTE', 'ATIVA', NULL, NULL, CURRENT_TIMESTAMP),
+    (1030, 'Fernanda Alves', 'fernanda.alves@estilomarcado.dev', 'fernanda.alves@estilomarcado.dev',
+     '$2b$12$R94GRi/MWe4xPxCE4KKIGeo6mESFCnCcRNtrdL7t6P8MP6xDMN.bO', '(91) 98888-0011',
+     'PROFISSIONAL', 'ATIVA', 1002, 1004, CURRENT_TIMESTAMP),
+    (1031, 'Rafael Nunes', 'rafael.nunes@estilomarcado.dev', 'rafael.nunes@estilomarcado.dev',
+     '$2b$12$R94GRi/MWe4xPxCE4KKIGeo6mESFCnCcRNtrdL7t6P8MP6xDMN.bO', '(91) 98888-0012',
+     'PROFISSIONAL', 'ATIVA', 1002, 1005, CURRENT_TIMESTAMP),
+    (1032, 'Patricia Gomes', 'patricia.gomes@estilomarcado.dev', 'patricia.gomes@estilomarcado.dev',
+     '$2b$12$R94GRi/MWe4xPxCE4KKIGeo6mESFCnCcRNtrdL7t6P8MP6xDMN.bO', '(91) 98888-0013',
+     'PROFISSIONAL', 'ATIVA', 1003, 1006, CURRENT_TIMESTAMP),
+    (1033, 'Lucas Barros', 'lucas.barros@estilomarcado.dev', 'lucas.barros@estilomarcado.dev',
+     '$2b$12$R94GRi/MWe4xPxCE4KKIGeo6mESFCnCcRNtrdL7t6P8MP6xDMN.bO', '(91) 98888-0014',
+     'PROFISSIONAL', 'ATIVA', 1003, 1007, CURRENT_TIMESTAMP),
+    (1034, 'Administracao Nazare', 'admin.nazare@estilomarcado.dev', 'admin.nazare@estilomarcado.dev',
+     '$2b$12$R94GRi/MWe4xPxCE4KKIGeo6mESFCnCcRNtrdL7t6P8MP6xDMN.bO', '(91) 98888-0015',
+     'ADMINISTRADOR', 'ATIVA', 1002, NULL, CURRENT_TIMESTAMP),
+    (1035, 'Recepcao Umarizal', 'recepcao.umarizal@estilomarcado.dev', 'recepcao.umarizal@estilomarcado.dev',
+     '$2b$12$R94GRi/MWe4xPxCE4KKIGeo6mESFCnCcRNtrdL7t6P8MP6xDMN.bO', '(91) 98888-0016',
+     'RECEPCAO', 'ATIVA', 1003, NULL, CURRENT_TIMESTAMP)
 ON CONFLICT DO NOTHING;
 
 -- ----------------------------------------------------------------------------
@@ -161,7 +203,31 @@ FROM (VALUES
     (1003, 2, TIME '10:00', TIME '13:00'), (1003, 2, TIME '14:00', TIME '20:00'),
     (1003, 3, TIME '10:00', TIME '13:00'), (1003, 3, TIME '14:00', TIME '20:00'),
     (1003, 4, TIME '10:00', TIME '13:00'), (1003, 4, TIME '14:00', TIME '20:00'),
-    (1003, 5, TIME '10:00', TIME '13:00'), (1003, 5, TIME '14:00', TIME '20:00')
+    (1003, 5, TIME '10:00', TIME '13:00'), (1003, 5, TIME '14:00', TIME '20:00'),
+    -- Fernanda Alves: segunda a sexta, 09:00-12:00 e 13:00-18:00
+    (1004, 1, TIME '09:00', TIME '12:00'), (1004, 1, TIME '13:00', TIME '18:00'),
+    (1004, 2, TIME '09:00', TIME '12:00'), (1004, 2, TIME '13:00', TIME '18:00'),
+    (1004, 3, TIME '09:00', TIME '12:00'), (1004, 3, TIME '13:00', TIME '18:00'),
+    (1004, 4, TIME '09:00', TIME '12:00'), (1004, 4, TIME '13:00', TIME '18:00'),
+    (1004, 5, TIME '09:00', TIME '12:00'), (1004, 5, TIME '13:00', TIME '18:00'),
+    -- Rafael Nunes: terca a sabado, 10:00-14:00 e 15:00-19:00
+    (1005, 2, TIME '10:00', TIME '14:00'), (1005, 2, TIME '15:00', TIME '19:00'),
+    (1005, 3, TIME '10:00', TIME '14:00'), (1005, 3, TIME '15:00', TIME '19:00'),
+    (1005, 4, TIME '10:00', TIME '14:00'), (1005, 4, TIME '15:00', TIME '19:00'),
+    (1005, 5, TIME '10:00', TIME '14:00'), (1005, 5, TIME '15:00', TIME '19:00'),
+    (1005, 6, TIME '10:00', TIME '14:00'), (1005, 6, TIME '15:00', TIME '19:00'),
+    -- Patricia Gomes: segunda a sexta, 08:00-12:00 e 13:00-17:00
+    (1006, 1, TIME '08:00', TIME '12:00'), (1006, 1, TIME '13:00', TIME '17:00'),
+    (1006, 2, TIME '08:00', TIME '12:00'), (1006, 2, TIME '13:00', TIME '17:00'),
+    (1006, 3, TIME '08:00', TIME '12:00'), (1006, 3, TIME '13:00', TIME '17:00'),
+    (1006, 4, TIME '08:00', TIME '12:00'), (1006, 4, TIME '13:00', TIME '17:00'),
+    (1006, 5, TIME '08:00', TIME '12:00'), (1006, 5, TIME '13:00', TIME '17:00'),
+    -- Lucas Barros: segunda a sexta, 10:00-13:00 e 14:00-20:00
+    (1007, 1, TIME '10:00', TIME '13:00'), (1007, 1, TIME '14:00', TIME '20:00'),
+    (1007, 2, TIME '10:00', TIME '13:00'), (1007, 2, TIME '14:00', TIME '20:00'),
+    (1007, 3, TIME '10:00', TIME '13:00'), (1007, 3, TIME '14:00', TIME '20:00'),
+    (1007, 4, TIME '10:00', TIME '13:00'), (1007, 4, TIME '14:00', TIME '20:00'),
+    (1007, 5, TIME '10:00', TIME '13:00'), (1007, 5, TIME '14:00', TIME '20:00')
 ) AS v(profissional_id, dia_semana, hora_inicio, hora_fim)
 WHERE NOT EXISTS (
     SELECT 1 FROM jornada_intervalo j
@@ -212,7 +278,27 @@ INSERT INTO bloqueio_agenda (id, unidade_id, profissional_id, data, dia_inteiro,
 ON CONFLICT DO NOTHING;
 
 -- ----------------------------------------------------------------------------
--- Atendimentos (agenda dos proximos dias)
+-- Lista de espera e ofertas de encaixe
+--   ATIVA / ATENDIDA / EXPIRADA / CANCELADA
+-- A ficha de encaixe (atendimento 1040) referencia a solicitacao 1002.
+-- ----------------------------------------------------------------------------
+INSERT INTO lista_espera (id, usuario_id, unidade_id, servico_id, profissional_id,
+                          data_inicio, data_fim, hora_inicio, hora_fim, status,
+                          criado_em, atualizado_em) VALUES
+    (1000, 1007, 1000, 1000, 1000, CURRENT_DATE + 2, CURRENT_DATE + 9, TIME '09:00', TIME '12:00',
+     'ATIVA', now() - INTERVAL '3 days', now() - INTERVAL '3 days'),
+    (1001, 1008, 1000, 1001, NULL, CURRENT_DATE + 3, CURRENT_DATE + 10, NULL, NULL,
+     'ATIVA', now() - INTERVAL '2 days', now() - INTERVAL '2 days'),
+    (1002, 1009, 1001, 1005, 1002, CURRENT_DATE + 1, CURRENT_DATE + 7, NULL, NULL,
+     'ATENDIDA', now() - INTERVAL '4 days', now() - INTERVAL '1 day'),
+    (1003, 1007, 1000, 1002, 1001, CURRENT_DATE - 5, CURRENT_DATE - 1, NULL, NULL,
+     'EXPIRADA', now() - INTERVAL '20 days', now() - INTERVAL '1 day'),
+    (1004, 1009, 1001, 1006, 1003, CURRENT_DATE + 4, CURRENT_DATE + 11, NULL, NULL,
+     'CANCELADA', now() - INTERVAL '6 days', now() - INTERVAL '5 days')
+ON CONFLICT DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Atendimentos (nucleo original, ids 1000-1013)
 --
 -- Snapshots comerciais e de ocupacao conforme a SPEC de agendamento. A coluna
 -- status/inicio nao e reescrita em reexecucoes (apenas os metadados convergem),
@@ -281,9 +367,97 @@ ON CONFLICT (id) DO UPDATE SET
     motivo_cancelamento = EXCLUDED.motivo_cancelamento;
 
 -- ----------------------------------------------------------------------------
+-- Agenda ampliada (ids 1014-1040): historico (dia_offset negativo) e proximos
+-- dias, incluindo o encaixe 1040 (lista_espera_id = 1002). Os snapshots vem do
+-- servico e da filial via join.
+-- ----------------------------------------------------------------------------
+INSERT INTO atendimento (id, profissional_id, servico_id, cliente_id, inicio, status,
+                         duracao_minutos, intervalo_minutos, servico_nome, preco_acordado,
+                         fuso_horario_agendamento, criado_em, atualizado_em,
+                         cancelado_em, cancelado_por, motivo_cancelamento, lista_espera_id)
+SELECT v.id, v.profissional_id, v.servico_id, v.cliente_id,
+       (CURRENT_DATE + v.dia_offset) + v.hora, v.status,
+       s.duracao_minutos, COALESCE(s.intervalo_minutos, 0), s.nome, s.preco, u.fuso_horario,
+       now() - INTERVAL '20 days', now() - INTERVAL '2 days',
+       NULL, NULL, NULL, v.lista_espera_id
+FROM (VALUES
+    -- Historico (realizados)
+    (1014, 1000, 1000, 1003, -3,  TIME '09:30', 'CONFIRMADO', NULL),
+    (1015, 1000, 1001, 1001, -10, TIME '13:30', 'CONFIRMADO', NULL),
+    (1016, 1001, 1002, 1002, -2,  TIME '10:30', 'CONFIRMADO', NULL),
+    (1017, 1002, 1005, 1004, -5,  TIME '08:30', 'CONFIRMADO', NULL),
+    (1018, 1003, 1004, 1000, -2,  TIME '10:00', 'CONFIRMADO', NULL),
+    (1019, 1004, 1021, 1000, -12, TIME '14:00', 'CONFIRMADO', NULL),
+    -- Fernanda Alves (Unidade Nazare)
+    (1020, 1004, 1021, 1000, 1,   TIME '09:00', 'CONFIRMADO', NULL),
+    (1021, 1004, 1020, 1001, 1,   TIME '10:30', 'AGENDADO',   NULL),
+    (1022, 1004, 1021, 1002, 1,   TIME '14:00', 'AGENDADO',   NULL),
+    (1023, 1004, 1020, 1003, 2,   TIME '11:00', 'AGENDADO',   NULL),
+    -- Rafael Nunes (Unidade Nazare)
+    (1024, 1005, 1022, 1003, -6,  TIME '15:30', 'CONFIRMADO', NULL),
+    (1025, 1005, 1020, 1000, -6,  TIME '16:30', 'CONFIRMADO', NULL),
+    (1026, 1005, 1022, 1001, 1,   TIME '10:30', 'AGENDADO',   NULL),
+    (1027, 1005, 1020, 1000, 1,   TIME '15:00', 'CONFIRMADO', NULL),
+    (1028, 1005, 1020, 1002, 2,   TIME '10:00', 'AGENDADO',   NULL),
+    -- Patricia Gomes (Unidade Umarizal)
+    (1029, 1006, 1025, 1002, -4,  TIME '08:30', 'CONFIRMADO', NULL),
+    (1030, 1006, 1024, 1003, -4,  TIME '13:30', 'CONFIRMADO', NULL),
+    (1031, 1006, 1024, 1002, 1,   TIME '08:30', 'CONFIRMADO', NULL),
+    (1032, 1006, 1023, 1003, 1,   TIME '10:00', 'AGENDADO',   NULL),
+    (1033, 1006, 1025, 1000, 1,   TIME '13:30', 'AGENDADO',   NULL),
+    (1034, 1006, 1024, 1001, 2,   TIME '09:00', 'AGENDADO',   NULL),
+    -- Lucas Barros (Unidade Umarizal)
+    (1035, 1007, 1025, 1003, -3,  TIME '14:00', 'CONFIRMADO', NULL),
+    (1036, 1007, 1023, 1000, -3,  TIME '17:00', 'CONFIRMADO', NULL),
+    (1037, 1007, 1023, 1001, 1,   TIME '10:30', 'AGENDADO',   NULL),
+    (1038, 1007, 1025, 1000, 1,   TIME '14:30', 'AGENDADO',   NULL),
+    (1039, 1007, 1023, 1002, 2,   TIME '16:00', 'AGENDADO',   NULL),
+    -- Encaixe da lista de espera 1002 (Beatriz)
+    (1040, 1002, 1005, 1002, 1,   TIME '15:00', 'AGENDADO',   1002)
+) AS v(id, profissional_id, servico_id, cliente_id, dia_offset, hora, status, lista_espera_id)
+JOIN servico s ON s.id = v.servico_id
+JOIN unidade u ON u.id = s.unidade_id
+ON CONFLICT (id) DO UPDATE SET
+    servico_nome = EXCLUDED.servico_nome,
+    preco_acordado = EXCLUDED.preco_acordado,
+    fuso_horario_agendamento = EXCLUDED.fuso_horario_agendamento,
+    criado_em = EXCLUDED.criado_em,
+    atualizado_em = EXCLUDED.atualizado_em,
+    cancelado_em = EXCLUDED.cancelado_em,
+    cancelado_por = EXCLUDED.cancelado_por,
+    motivo_cancelamento = EXCLUDED.motivo_cancelamento,
+    lista_espera_id = EXCLUDED.lista_espera_id;
+
+-- ----------------------------------------------------------------------------
+-- Eventos da lista de espera
+-- ----------------------------------------------------------------------------
+INSERT INTO lista_espera_evento (id, lista_espera_id, autor_id, estado_anterior, estado_novo, ocorrido_em) VALUES
+    (1000, 1000, 1007, NULL, 'ATIVA', now() - INTERVAL '3 days'),
+    (1001, 1001, 1008, NULL, 'ATIVA', now() - INTERVAL '2 days'),
+    (1002, 1002, 1009, NULL, 'ATIVA', now() - INTERVAL '4 days'),
+    (1003, 1002, 1009, 'ATIVA', 'ATENDIDA', now() - INTERVAL '1 day'),
+    (1004, 1003, 1007, NULL, 'ATIVA', now() - INTERVAL '20 days'),
+    (1005, 1003, NULL, 'ATIVA', 'EXPIRADA', now() - INTERVAL '1 day'),
+    (1006, 1004, 1009, NULL, 'ATIVA', now() - INTERVAL '6 days'),
+    (1007, 1004, 1009, 'ATIVA', 'CANCELADA', now() - INTERVAL '5 days')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO lista_espera_oferta (id, lista_espera_id, profissional_id, inicio, fuso_horario,
+                                 status, emitida_em, expira_em) VALUES
+    (1000, 1000, 1000, (CURRENT_DATE + 3) + TIME '09:00', 'America/Sao_Paulo', 'ENVIADA',
+     now() - INTERVAL '1 hour', now() + INTERVAL '15 minutes'),
+    (1001, 1000, 1000, (CURRENT_DATE + 4) + TIME '09:00', 'America/Sao_Paulo', 'INDISPONIVEL',
+     now() - INTERVAL '2 days', now() - INTERVAL '2 days'),
+    (1002, 1001, 1000, (CURRENT_DATE + 4) + TIME '11:00', 'America/Sao_Paulo', 'EXPIRADA',
+     now() - INTERVAL '2 days', now() - INTERVAL '2 days'),
+    (1003, 1002, 1002, (CURRENT_DATE + 1) + TIME '15:00', 'America/Sao_Paulo', 'ACEITA',
+     now() - INTERVAL '2 days', now() - INTERVAL '1 day')
+ON CONFLICT DO NOTHING;
+
+-- ----------------------------------------------------------------------------
 -- Historico de agendamento (append-only; nao e reescrito em reexecucoes)
 --   CRIACAO        -> um evento por atendimento
---   CONFIRMACAO    -> atendimentos 1000, 1005, 1008 e 1011
+--   CONFIRMACAO    -> atendimentos confirmados
 --   CANCELAMENTO   -> atendimento 1004
 --   REAGENDAMENTO  -> atendimento 1003 (exemplo de historico)
 -- ----------------------------------------------------------------------------
@@ -335,6 +509,94 @@ INSERT INTO agendamento_evento (id, atendimento_id, autor_id, tipo, ocorrido_em,
      (CURRENT_DATE + 2) + TIME '08:30', (CURRENT_DATE + 2) + TIME '09:30')
 ON CONFLICT DO NOTHING;
 
+-- Eventos de criacao da agenda ampliada (id = atendimento + 986).
+INSERT INTO agendamento_evento (id, atendimento_id, autor_id, tipo, ocorrido_em,
+                                estado_anterior, estado_novo, inicio_anterior, inicio_novo)
+SELECT a.id + 986, a.id,
+       CASE a.cliente_id
+           WHEN 1000 THEN 1007
+           WHEN 1001 THEN 1008
+           WHEN 1002 THEN 1009
+           ELSE (SELECT u.id FROM usuario u
+                 WHERE u.perfil IN ('RECEPCAO', 'ADMINISTRADOR')
+                   AND u.unidade_id = p.unidade_id
+                 ORDER BY u.id LIMIT 1)
+       END,
+       'CRIACAO',
+       LEAST(now() - INTERVAL '1 hour',
+             (a.inicio AT TIME ZONE a.fuso_horario_agendamento) - INTERVAL '3 days'),
+       NULL, 'AGENDADO', NULL, a.inicio
+FROM atendimento a
+JOIN profissional p ON p.id = a.profissional_id
+WHERE a.id BETWEEN 1014 AND 1040
+  AND NOT EXISTS (
+      SELECT 1 FROM agendamento_evento e
+      WHERE e.atendimento_id = a.id AND e.tipo = 'CRIACAO'
+  );
+
+-- Eventos de confirmacao da agenda ampliada (id = atendimento + 1986).
+INSERT INTO agendamento_evento (id, atendimento_id, autor_id, tipo, ocorrido_em,
+                                estado_anterior, estado_novo, inicio_anterior, inicio_novo)
+SELECT a.id + 1986, a.id,
+       (SELECT u.id FROM usuario u
+        WHERE u.perfil IN ('RECEPCAO', 'ADMINISTRADOR')
+          AND u.unidade_id = p.unidade_id
+        ORDER BY u.id LIMIT 1),
+       'CONFIRMACAO',
+       LEAST(now() - INTERVAL '1 hour',
+             (a.inicio AT TIME ZONE a.fuso_horario_agendamento) - INTERVAL '2 days'),
+       'AGENDADO', 'CONFIRMADO', a.inicio, a.inicio
+FROM atendimento a
+JOIN profissional p ON p.id = a.profissional_id
+WHERE a.id BETWEEN 1014 AND 1040
+  AND a.status = 'CONFIRMADO'
+  AND NOT EXISTS (
+      SELECT 1 FROM agendamento_evento e
+      WHERE e.atendimento_id = a.id AND e.tipo = 'CONFIRMACAO'
+  );
+
+-- ----------------------------------------------------------------------------
+-- Notificacoes: preferencias, internas e outbox.
+-- Itens PENDENTE usam enviar_apos futuro para nao serem processados no demo.
+-- ----------------------------------------------------------------------------
+INSERT INTO notificacao_preferencia (usuario_id, lembretes, avisos_lista) VALUES
+    (1007, TRUE, TRUE),
+    (1008, FALSE, TRUE),
+    (1009, TRUE, FALSE)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO notificacao_interna (id, usuario_id, tipo, referencia_tipo, referencia_id,
+                                 dedupe_key, criado_em, lido_em) VALUES
+    (1000, 1007, 'CONFIRMACAO', 'AGENDAMENTO', 1000, 'seed:confirmacao:1000:1007:interna',
+     now() - INTERVAL '9 days', now() - INTERVAL '8 days'),
+    (1001, 1007, 'LEMBRETE', 'AGENDAMENTO', 1000, 'seed:lembrete:1000:1007:interna',
+     now() - INTERVAL '1 day', NULL),
+    (1002, 1008, 'CRIACAO', 'AGENDAMENTO', 1001, 'seed:criacao:1001:1008:interna',
+     now() - INTERVAL '10 days', NULL),
+    (1003, 1009, 'OFERTA', 'OFERTA', 1003, 'seed:oferta:1003:1009:interna',
+     now() - INTERVAL '2 days', NULL),
+    (1004, 1009, 'CANCELAMENTO', 'AGENDAMENTO', 1004, 'seed:cancelamento:1004:1009:interna',
+     now() - INTERVAL '2 days', now() - INTERVAL '2 days'),
+    (1005, 1007, 'OFERTA', 'OFERTA', 1000, 'seed:oferta:1000:1007:interna',
+     now() - INTERVAL '3 hours', NULL)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO notificacao_outbox (id, usuario_id, tipo, referencia_tipo, referencia_id,
+                                dedupe_key, status, tentativas, enviar_apos, enviado_em, criado_em) VALUES
+    (1000, 1007, 'CONFIRMACAO', 'AGENDAMENTO', 1000, 'seed:confirmacao:1000:1007:email',
+     'ENVIADO', 1, now() - INTERVAL '9 days', now() - INTERVAL '9 days', now() - INTERVAL '9 days'),
+    (1001, 1007, 'LEMBRETE', 'AGENDAMENTO', 1000, 'seed:lembrete:1000:1007:email',
+     'PENDENTE', 0, now() + INTERVAL '1 day', NULL, now() - INTERVAL '1 day'),
+    (1002, 1008, 'CRIACAO', 'AGENDAMENTO', 1001, 'seed:criacao:1001:1008:email',
+     'ENVIADO', 1, now() - INTERVAL '10 days', now() - INTERVAL '10 days', now() - INTERVAL '10 days'),
+    (1003, 1009, 'OFERTA', 'OFERTA', 1003, 'seed:oferta:1003:1009:email',
+     'ENVIADO', 1, now() - INTERVAL '2 days', now() - INTERVAL '2 days', now() - INTERVAL '2 days'),
+    (1004, 1009, 'CANCELAMENTO', 'AGENDAMENTO', 1004, 'seed:cancelamento:1004:1009:email',
+     'CANCELADO', 0, now() - INTERVAL '2 days', NULL, now() - INTERVAL '2 days'),
+    (1005, 1007, 'OFERTA', 'OFERTA', 1000, 'seed:oferta:1000:1007:email',
+     'PENDENTE', 0, now() + INTERVAL '1 day', NULL, now() - INTERVAL '3 hours')
+ON CONFLICT DO NOTHING;
+
 -- ----------------------------------------------------------------------------
 -- Reposiciona as sequencias apos insercao com ids explicitos
 -- ----------------------------------------------------------------------------
@@ -362,10 +624,20 @@ SELECT setval(pg_get_serial_sequence('feriado', 'id'),
               GREATEST((SELECT COALESCE(MAX(id), 1) FROM feriado), 1));
 SELECT setval(pg_get_serial_sequence('bloqueio_agenda', 'id'),
               GREATEST((SELECT COALESCE(MAX(id), 1) FROM bloqueio_agenda), 1));
+SELECT setval(pg_get_serial_sequence('lista_espera', 'id'),
+              GREATEST((SELECT COALESCE(MAX(id), 1) FROM lista_espera), 1));
+SELECT setval(pg_get_serial_sequence('lista_espera_evento', 'id'),
+              GREATEST((SELECT COALESCE(MAX(id), 1) FROM lista_espera_evento), 1));
+SELECT setval(pg_get_serial_sequence('lista_espera_oferta', 'id'),
+              GREATEST((SELECT COALESCE(MAX(id), 1) FROM lista_espera_oferta), 1));
 SELECT setval(pg_get_serial_sequence('atendimento', 'id'),
               GREATEST((SELECT COALESCE(MAX(id), 1) FROM atendimento), 1));
 SELECT setval(pg_get_serial_sequence('agendamento_evento', 'id'),
               GREATEST((SELECT COALESCE(MAX(id), 1) FROM agendamento_evento), 1));
+SELECT setval(pg_get_serial_sequence('notificacao_interna', 'id'),
+              GREATEST((SELECT COALESCE(MAX(id), 1) FROM notificacao_interna), 1));
+SELECT setval(pg_get_serial_sequence('notificacao_outbox', 'id'),
+              GREATEST((SELECT COALESCE(MAX(id), 1) FROM notificacao_outbox), 1));
 
 COMMIT;
 
@@ -381,6 +653,12 @@ UNION ALL SELECT 'excecao_jornada', COUNT(*) FROM excecao_jornada
 UNION ALL SELECT 'afastamento', COUNT(*) FROM afastamento
 UNION ALL SELECT 'feriado', COUNT(*) FROM feriado
 UNION ALL SELECT 'bloqueio_agenda', COUNT(*) FROM bloqueio_agenda
+UNION ALL SELECT 'lista_espera', COUNT(*) FROM lista_espera
+UNION ALL SELECT 'lista_espera_evento', COUNT(*) FROM lista_espera_evento
+UNION ALL SELECT 'lista_espera_oferta', COUNT(*) FROM lista_espera_oferta
 UNION ALL SELECT 'atendimento', COUNT(*) FROM atendimento
 UNION ALL SELECT 'agendamento_evento', COUNT(*) FROM agendamento_evento
+UNION ALL SELECT 'notificacao_preferencia', COUNT(*) FROM notificacao_preferencia
+UNION ALL SELECT 'notificacao_interna', COUNT(*) FROM notificacao_interna
+UNION ALL SELECT 'notificacao_outbox', COUNT(*) FROM notificacao_outbox
 ORDER BY tabela;

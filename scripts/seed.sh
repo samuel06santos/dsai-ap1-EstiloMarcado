@@ -54,6 +54,12 @@ if [ "$RESET" = "true" ]; then
     echo "Limpando dados de dominio (reset)..."
     docker exec -i "$CONTAINER" psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" <<'SQL'
 TRUNCATE TABLE
+    notificacao_outbox,
+    notificacao_interna,
+    notificacao_preferencia,
+    lista_espera_evento,
+    lista_espera_oferta,
+    lista_espera,
     agendamento_evento,
     agendamento_idempotencia,
     bloqueio_agenda,

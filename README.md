@@ -72,9 +72,10 @@ valores em producao e nao versione esse arquivo.
 
 ## Seed de dados mock (desenvolvimento)
 
-Depois de subir os containers, popule o banco com dados de exemplo (filiais,
-profissionais, servicos, contas de acesso, clientes vinculados e avulsos,
-jornadas, atendimentos e historico de agendamento):
+Depois de subir os containers, popule o banco com dados de exemplo (dois
+estabelecimentos, filiais, profissionais, servicos, contas de acesso, clientes
+vinculados e avulsos, jornadas, atendimentos passados e futuros, historico de
+agendamento, lista de espera e notificacoes):
 
 ```powershell
 # Windows / PowerShell

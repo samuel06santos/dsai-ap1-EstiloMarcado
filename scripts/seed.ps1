@@ -72,6 +72,12 @@ if ($Reset) {
     Write-Host 'Limpando dados de dominio (reset)...' -ForegroundColor Yellow
     $truncate = @'
 TRUNCATE TABLE
+    notificacao_outbox,
+    notificacao_interna,
+    notificacao_preferencia,
+    lista_espera_evento,
+    lista_espera_oferta,
+    lista_espera,
     agendamento_evento,
     agendamento_idempotencia,
     bloqueio_agenda,
