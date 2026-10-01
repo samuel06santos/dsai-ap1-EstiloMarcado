@@ -1,31 +1,56 @@
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
-import { AuthService, Perfil, Usuario } from './auth.service';
+import { AuthService, ErroApi, MeuPerfil, Perfil, Usuario } from './auth.service';
+import { UiIconComponent } from './ui-icon.component';
+import { EstabelecimentoService, Profissional } from './estabelecimento.service';
 
 @Component({
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, UiIconComponent],
   template: `
-    <section class="hero">
-      <div>
-        <p class="eyebrow">Seu tempo, bem cuidado</p>
-        <h1>Agende beleza sem complicacao.</h1>
-        <p class="lead">Encontre servicos e horarios. O estabelecimento cuida do resto.</p>
-        <div class="actions">
-          <a class="button primary" routerLink="/cadastro">Criar minha conta</a>
-          <a class="button ghost" routerLink="/entrar">Ja tenho uma conta</a>
+    @if (auth.sessao() === undefined) {
+      <div class="loading-state" role="status">Carregando seu espaço…</div>
+    } @else if (auth.sessao(); as sessao) {
+      <section class="dashboard-welcome">
+        <div class="welcome-copy">
+          <p class="eyebrow">Seu espaço</p>
+          <h1>Olá, {{ sessao.nome }}.</h1>
+          <p class="lead">Tudo o que você precisa para cuidar do seu tempo, em um só lugar.</p>
+          <div class="actions">
+            @switch (sessao.perfil) {
+              @case ('PROFISSIONAL') { <a class="button primary" routerLink="/profissional/agenda"><app-icon name="calendar" /> Ver minha agenda</a> }
+              @case ('ADMINISTRADOR') { <a class="button primary" routerLink="/administracao/estabelecimento"><app-icon name="building" /> Ver meu painel</a> }
+              @case ('RECEPCAO') { <a class="button primary" routerLink="/minha-filial"><app-icon name="building" /> Ver minha filial</a> }
+              @default { <a class="button primary" routerLink="/conta"><app-icon name="user" /> Meu perfil</a> }
+            }
+          </div>
         </div>
-      </div>
-      <div class="hero-card" aria-hidden="true">
-        <span>Proximo horario</span><strong>Hoje, 15:30</strong><small>Corte de cabelo · 30 min</small>
-      </div>
-    </section>
+        <div class="welcome-art" aria-hidden="true"><span>EM</span><i></i><i></i></div>
+      </section>
+    } @else {
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Seu tempo, bem cuidado</p>
+          <h1>Beleza com o seu tempo.</h1>
+          <p class="lead">Conheça sua filial, seus profissionais e os serviços disponíveis em uma experiência mais leve.</p>
+          <div class="actions">
+            <a class="button primary" routerLink="/cadastro"><app-icon name="sparkles" /> Criar minha conta</a>
+            <a class="button ghost" routerLink="/entrar">Já tenho uma conta</a>
+          </div>
+        </div>
+        <div class="hero-card" aria-hidden="true">
+          <span class="hero-ornament">EM</span><strong>Seu momento merece cuidado.</strong>
+          <small>Estilo Marcado</small>
+        </div>
+      </section>
+    }
   `
 })
-export class HomeComponent {}
+export class HomeComponent { readonly auth = inject(AuthService); }
 
 @Component({
   standalone: true,
@@ -54,7 +79,12 @@ export class LoginComponent {
   enviar(): void {
     this.erro.set(''); this.enviando.set(true);
     this.auth.login(this.email, this.senha).pipe(finalize(() => this.enviando.set(false)))
-      .subscribe({ next: () => void this.router.navigateByUrl('/conta'), error: (e) => this.erro.set(AuthService.mensagemErro(e)) });
+      .subscribe({ next: (sessao) => {
+        const destino = sessao.perfil === 'PROFISSIONAL' ? '/profissional/agenda'
+          : sessao.perfil === 'ADMINISTRADOR' ? '/administracao/estabelecimento'
+          : sessao.perfil === 'RECEPCAO' ? '/minha-filial' : '/';
+        void this.router.navigateByUrl(destino);
+      }, error: (e) => this.erro.set(AuthService.mensagemErro(e)) });
   }
 }
 
@@ -155,39 +185,142 @@ export class NovaSenhaComponent {
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink, UiIconComponent],
   template: `
-    <section class="content-card"><p class="eyebrow">Minha conta</p><h1>Dados pessoais</h1>
-      @if (usuario(); as u) { <form (ngSubmit)="salvar()"><label>Nome<input name="nome" [(ngModel)]="nome" required minlength="2"></label>
-        <label>E-mail<input [value]="u.email" disabled></label><p><span class="badge">{{ u.perfil }}</span></p>
-        @if (mensagem()) { <p class="notice success">{{ mensagem() }}</p> }<button class="button primary">Salvar nome</button></form> }
+    <section class="profile-page page-stack">
+      <div class="page-heading"><p class="eyebrow">Minha conta</p><h1>Meu perfil</h1>
+        <p>Cuide dos seus dados e mantenha seu contato atualizado.</p></div>
+      @if (usuario(); as u) {
+        <div class="profile-grid">
+          <div class="profile-identity surface-panel">
+            <div class="profile-avatar"><img src="/avatar.svg" width="96" height="96" alt="Avatar padrão"></div>
+            <h2>{{ u.nome }}</h2><span class="badge">{{ tituloPerfil(u.perfil) }}</span>
+            <p>A troca de foto estará disponível futuramente.</p>
+          </div>
+          <div class="surface-panel profile-details">
+            <div class="section-title"><div><p class="eyebrow">Dados pessoais</p><h2>Informações de contato</h2></div><app-icon name="user" /></div>
+            <form (ngSubmit)="salvar()" #form="ngForm">
+              <label>Nome completo<input name="nome" [(ngModel)]="nome" required minlength="2" maxlength="120" autocomplete="name"></label>
+              <label>E-mail<input [value]="u.email" disabled aria-describedby="email-ajuda"></label>
+              <p id="email-ajuda" class="field-help">Seu e-mail é somente leitura e não pode ser alterado aqui.</p>
+              <label>Telefone / WhatsApp<input type="tel" name="telefoneContato" [(ngModel)]="telefone"
+                inputmode="tel" autocomplete="tel" maxlength="30" placeholder="(91) 99999-9999"></label>
+              <p class="field-help">Opcional. Informe o DDD ou use o formato internacional com +.</p>
+              @if (errosCampos()['telefoneContato']) { <p class="field-error" role="alert">{{ errosCampos()['telefoneContato'] }}</p> }
+              @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
+              @if (mensagem()) { <p class="notice success" role="status">{{ mensagem() }}</p> }
+              <div class="form-actions"><button class="button primary" type="submit"
+                [disabled]="form.invalid || !telefoneValido() || !alterado() || salvando()">
+                <app-icon name="check" /> {{ salvando() ? 'Salvando…' : 'Salvar alterações' }}
+              </button></div>
+            </form>
+          </div>
+        </div>
+        @if (u.filial && u.estabelecimento) {
+          <div class="surface-panel affiliation-panel">
+            <div class="section-title"><div><p class="eyebrow">Seu local de trabalho</p><h2>Meu vínculo</h2></div><app-icon name="building" /></div>
+            <div class="affiliation-grid">
+              <div><span>Filial</span><a [routerLink]="u.perfil === 'ADMINISTRADOR' ? '/administracao/estabelecimento' : '/minha-filial'"
+                fragment="filial">{{ u.filial.nome }} <app-icon name="arrow" /></a>
+                <small>{{ u.filial.ativa ? 'Ativa' : 'Inativa' }}</small></div>
+              <div><span>Estabelecimento</span><a [routerLink]="u.perfil === 'ADMINISTRADOR' ? '/administracao/estabelecimento' : '/minha-filial'"
+                fragment="estabelecimento">{{ u.estabelecimento.nome }} <app-icon name="arrow" /></a></div>
+            </div>
+          </div>
+        }
+      } @else if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
     </section>`
 })
 export class ContaComponent implements OnInit {
-  private readonly auth = inject(AuthService); readonly usuario = signal<Usuario | null>(null); readonly mensagem = signal(''); nome = '';
-  ngOnInit(): void { this.auth.meuPerfil().subscribe((u) => { this.usuario.set(u); this.nome = u.nome; }); }
-  salvar(): void { this.auth.atualizarNome(this.nome).subscribe((u) => { this.usuario.set(u); this.mensagem.set('Dados atualizados.'); }); }
+  private readonly auth = inject(AuthService);
+  readonly usuario = signal<MeuPerfil | null>(null);
+  readonly mensagem = signal('');
+  readonly erro = signal('');
+  readonly errosCampos = signal<Record<string, string>>({});
+  readonly salvando = signal(false);
+  nome = '';
+  telefone = '';
+  ngOnInit(): void {
+    this.auth.meuPerfil().subscribe({
+      next: u => { this.usuario.set(u); this.nome = u.nome; this.telefone = u.telefoneContato ?? ''; },
+      error: e => this.erro.set(AuthService.mensagemErro(e))
+    });
+  }
+  tituloPerfil(perfil: Perfil): string {
+    return { CLIENTE: 'Cliente', PROFISSIONAL: 'Profissional',
+      RECEPCAO: 'Recepção', ADMINISTRADOR: 'Administrador' }[perfil];
+  }
+  alterado(): boolean {
+    const atual = this.usuario();
+    return !!atual && (this.nome.trim() !== atual.nome ||
+      this.telefone.trim() !== (atual.telefoneContato ?? ''));
+  }
+  telefoneValido(): boolean {
+    const texto = this.telefone.trim();
+    if (!texto) { return true; }
+    if (!/^\+?[0-9() .-]+$/.test(texto)) { return false; }
+    const tamanho = texto.replace(/\D/g, '').length;
+    return texto.startsWith('+') ? tamanho >= 8 && tamanho <= 15 : tamanho === 10 || tamanho === 11;
+  }
+  salvar(): void {
+    if (!this.alterado() || !this.telefoneValido() || this.salvando()) { return; }
+    this.erro.set(''); this.errosCampos.set({}); this.mensagem.set(''); this.salvando.set(true);
+    this.auth.atualizarPerfil(this.nome, this.telefone.trim() || null)
+      .pipe(finalize(() => this.salvando.set(false))).subscribe({
+        next: u => { this.usuario.set(u); this.nome = u.nome; this.telefone = u.telefoneContato ?? '';
+          this.mensagem.set('Dados atualizados com sucesso.'); },
+        error: e => {
+          this.erro.set(AuthService.mensagemErro(e));
+          if (e instanceof HttpErrorResponse) {
+            this.errosCampos.set((e.error as ErroApi | undefined)?.campos ?? {});
+          }
+        }
+      });
+  }
 }
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, UiIconComponent],
   template: `
-    <section class="content-card wide"><div class="section-heading"><div><p class="eyebrow">Administracao</p><h1>Contas da equipe</h1></div></div>
-      <form class="inline-form" (ngSubmit)="criar()" #form="ngForm">
-        <label>Nome<input name="nome" [(ngModel)]="nome" required></label><label>E-mail<input type="email" name="email" [(ngModel)]="email" required email></label>
-        <label>Perfil<select name="perfil" [(ngModel)]="perfil"><option value="PROFISSIONAL">Profissional</option><option value="RECEPCAO">Recepcao</option><option value="ADMINISTRADOR">Administrador</option></select></label>
-        @if (perfil === 'PROFISSIONAL') { <label>ID do profissional<input type="number" name="profissional" [(ngModel)]="profissionalId" required></label> }
-        <button class="button primary" [disabled]="form.invalid">Enviar convite</button>
-      </form>
-      @if (erro()) { <p class="notice error">{{ erro() }}</p> }
-      <div class="user-list">@for (u of usuarios(); track u.id) { <article><div><strong>{{ u.nome }}</strong><small>{{ u.email }}</small></div><span class="badge">{{ u.perfil }}</span><span class="status">{{ u.estado }}</span></article> }</div>
+    <section class="page-stack">
+      <div class="page-heading"><p class="eyebrow">Administração</p><h1>Contas da equipe</h1>
+        <p>Convide pessoas para trabalhar na sua filial e acompanhe seus acessos.</p></div>
+      @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
+      <section class="surface-panel section-card">
+        <div class="section-title"><div><p class="eyebrow">Convites</p><h2>Adicionar alguém à equipe</h2></div><app-icon name="users" /></div>
+        <form (ngSubmit)="criar()" #form="ngForm">
+          <div class="form-grid">
+            <label>Nome<input name="nome" [(ngModel)]="nome" required minlength="2" maxlength="120"></label>
+            <label>E-mail<input type="email" name="email" [(ngModel)]="email" required email></label>
+            <label>Perfil<select name="perfil" [(ngModel)]="perfil">
+              <option value="PROFISSIONAL">Profissional</option><option value="RECEPCAO">Recepção</option>
+              <option value="ADMINISTRADOR">Administrador</option></select></label>
+            @if (perfil === 'PROFISSIONAL') {
+              <label>Profissional<select name="profissional" [(ngModel)]="profissionalId" required>
+                <option [ngValue]="null">Selecione uma pessoa</option>
+                @for (p of profissionais(); track p.id) { <option [ngValue]="p.id">{{ p.nome }}</option> }
+              </select></label>
+            }
+          </div>
+          <div class="form-actions"><button class="button primary" [disabled]="form.invalid">Enviar convite</button></div>
+        </form>
+      </section>
+      <section class="surface-panel section-card">
+        <div class="section-title"><div><p class="eyebrow">Pessoas</p><h2>Equipe da filial</h2></div><app-icon name="users" /></div>
+        <div class="user-list">@for (u of usuarios(); track u.id) {
+          <article><div><strong>{{ u.nome }}</strong><small>{{ u.email }}</small></div>
+            <span class="badge">{{ u.perfil }}</span><span class="status">{{ u.estado }}</span></article>
+        } @empty { <p class="muted-copy">Ainda não há contas internas nesta filial.</p> }</div>
+      </section>
     </section>`
 })
 export class UsuariosAdminComponent implements OnInit {
   private readonly auth = inject(AuthService); readonly usuarios = signal<Usuario[]>([]); readonly erro = signal('');
+  private readonly estabelecimento = inject(EstabelecimentoService);
+  readonly profissionais = signal<Profissional[]>([]);
   nome = ''; email = ''; perfil: Perfil = 'PROFISSIONAL'; profissionalId: number | null = null;
-  ngOnInit(): void { this.carregar(); }
+  ngOnInit(): void { this.carregar(); this.carregarProfissionais(); }
   criar(): void {
     const unidade = this.auth.sessao()?.unidadeId;
     if (unidade === null || unidade === undefined) { return; }
@@ -197,5 +330,14 @@ export class UsuariosAdminComponent implements OnInit {
   private carregar(): void {
     const unidade = this.auth.sessao()?.unidadeId;
     if (unidade !== null && unidade !== undefined) { this.auth.listarUsuarios(unidade).subscribe((u) => this.usuarios.set(u)); }
+  }
+  private carregarProfissionais(): void {
+    const unidade = this.auth.sessao()?.unidadeId;
+    if (unidade != null) {
+      this.estabelecimento.profissionais(unidade, true).subscribe({
+        next: lista => this.profissionais.set(lista.filter(p => p.ativo)),
+        error: e => this.erro.set(AuthService.mensagemErro(e))
+      });
+    }
   }
 }

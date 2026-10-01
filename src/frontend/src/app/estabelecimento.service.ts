@@ -44,6 +44,10 @@ export class EstabelecimentoService {
     return this.http.get<Filial>(`/api/unidades/${id}`);
   }
 
+  minhaFilial(): Observable<Filial> {
+    return this.http.get<Filial>('/api/unidades/me');
+  }
+
   filialPublica(id: number): Observable<Filial> {
     return this.http.get<Filial>(`/api/unidades/${id}/publico`);
   }

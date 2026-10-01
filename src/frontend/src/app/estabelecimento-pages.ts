@@ -4,72 +4,114 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from './auth.service';
 import { Estabelecimento, EstabelecimentoService, Filial, FilialDados, Profissional } from './estabelecimento.service';
+import { UiIconComponent } from './ui-icon.component';
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, UiIconComponent],
   template: `
-    <section class="content-card wide">
-      <p class="eyebrow">Administração</p><h1>Estabelecimento e filial</h1>
+    <section class="page-stack">
+      <div class="page-heading"><p class="eyebrow">Administração</p><h1>Seu espaço de gestão</h1>
+        <p>Organize sua filial, equipe e profissionais em um só lugar.</p></div>
       @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
       @if (mensagem()) { <p class="notice success" role="status">{{ mensagem() }}</p> }
       @if (filial(); as atual) {
-        <p>Você administra a filial <strong>{{ atual.nome }}</strong>.</p>
-        <a [routerLink]="['/unidades', atual.id]">Ver página pública</a>
-        <h2>Dados da filial</h2>
-        <form (ngSubmit)="salvarFilial()" #formFilial="ngForm">
-          <label>Nome<input name="filialNome" [(ngModel)]="filialDados.nome" required minlength="2" maxlength="120"></label>
-          <label>Endereço<input name="endereco" [(ngModel)]="filialDados.endereco" maxlength="250"></label>
-          <label>Telefone<input name="telefone" [(ngModel)]="filialDados.telefone" maxlength="30"></label>
-          <label>Fuso horário IANA<input name="fuso" [(ngModel)]="filialDados.fusoHorario" required></label>
-          <label class="checkbox-line"><input type="checkbox" name="ativa" [(ngModel)]="filialDados.ativa">Filial ativa</label>
-          <button class="button primary" [disabled]="formFilial.invalid || salvando()">Salvar filial</button>
-        </form>
+        <div class="overview-grid">
+          <article class="surface-panel summary-card"><span class="panel-icon"><app-icon name="building" /></span>
+            <p class="eyebrow">Minha filial</p><h2>{{ atual.nome }}</h2>
+            <span class="badge">{{ atual.ativa ? 'Ativa' : 'Inativa' }}</span>
+            @if (atual.ativa) { <a class="text-link" [routerLink]="['/unidades', atual.id]">Ver página pública <app-icon name="arrow" /></a> }
+          </article>
+          @if (estabelecimento(); as empresa) {
+            <article class="surface-panel summary-card"><span class="panel-icon"><app-icon name="sparkles" /></span>
+              <p class="eyebrow">Estabelecimento</p><h2>{{ empresa.nome }}</h2>
+              <span class="muted-copy">{{ empresa.administradorPrincipal ? 'Filial principal' : 'Sua organização' }}</span>
+            </article>
+          }
+        </div>
+        <section id="filial" class="surface-panel section-card">
+          <div class="section-title"><div><p class="eyebrow">Configuração</p><h2>Dados da filial</h2></div><app-icon name="building" /></div>
+          <p class="muted-copy">Atualize as informações apresentadas aos clientes da sua filial.</p>
+          <form (ngSubmit)="salvarFilial()" #formFilial="ngForm">
+            <div class="form-grid">
+              <label>Nome<input name="filialNome" [(ngModel)]="filialDados.nome" required minlength="2" maxlength="120"></label>
+              <label>Telefone<input name="telefone" [(ngModel)]="filialDados.telefone" maxlength="30"></label>
+              <label>Endereço<input name="endereco" [(ngModel)]="filialDados.endereco" maxlength="250"></label>
+              <label>Fuso horário IANA<input name="fuso" [(ngModel)]="filialDados.fusoHorario" required></label>
+            </div>
+            <label class="checkbox-line"><input type="checkbox" name="ativa" [(ngModel)]="filialDados.ativa">Filial ativa</label>
+            <div class="form-actions"><button class="button primary" [disabled]="formFilial.invalid || salvando()">Salvar filial</button></div>
+          </form>
+        </section>
       }
       @if (estabelecimento(); as atual) {
-        <h2>Estabelecimento</h2><p>{{ atual.nome }}</p>
+        <section id="estabelecimento" class="surface-panel section-card">
+          <div class="section-title"><div><p class="eyebrow">Organização</p><h2>Estabelecimento</h2></div><app-icon name="sparkles" /></div>
+          <p class="muted-copy">{{ atual.nome }}</p>
         @if (atual.administradorPrincipal) {
           <form (ngSubmit)="salvarEstabelecimento()" #formEstabelecimento="ngForm">
             <label>Nome do estabelecimento<input name="estabelecimentoNome" [(ngModel)]="nomeEstabelecimento" required minlength="2" maxlength="120"></label>
-            <button class="button ghost" [disabled]="formEstabelecimento.invalid || salvando()">Salvar nome</button>
+            <div class="form-actions"><button class="button ghost" [disabled]="formEstabelecimento.invalid || salvando()">Salvar nome</button></div>
           </form>
-          <h2>Filiais</h2>
+        }
+        </section>
+        @if (atual.administradorPrincipal) {
+          <section id="filiais" class="surface-panel section-card">
+          <div class="section-title"><div><p class="eyebrow">Organização</p><h2>Filiais</h2></div><app-icon name="building" /></div>
           <div class="user-list">
             @for (item of atual.filiais; track item.id) {
               <article><strong>{{ item.nome }}</strong><span class="status">{{ item.ativa ? 'Ativa' : 'Inativa' }}</span></article>
             }
           </div>
-          <h3>Criar filial</h3>
+          <details class="create-details"><summary><app-icon name="sparkles" /> Criar filial</summary>
           <form (ngSubmit)="criarFilial()" #formNovaFilial="ngForm">
-            <label>Nome da filial<input name="novaFilialNome" [(ngModel)]="novaFilial.nome" required minlength="2" maxlength="120"></label>
-            <label>Endereço<input name="novoEndereco" [(ngModel)]="novaFilial.endereco" maxlength="250"></label>
-            <label>Telefone<input name="novoTelefone" [(ngModel)]="novaFilial.telefone" maxlength="30"></label>
-            <label>Fuso horário IANA<input name="novoFuso" [(ngModel)]="novaFilial.fusoHorario" required></label>
-            <label>Nome do primeiro administrador<input name="adminNome" [(ngModel)]="adminNome" required minlength="2" maxlength="120"></label>
-            <label>E-mail do primeiro administrador<input type="email" name="adminEmail" [(ngModel)]="adminEmail" required email></label>
+            <div class="form-grid">
+              <label>Nome da filial<input name="novaFilialNome" [(ngModel)]="novaFilial.nome" required minlength="2" maxlength="120"></label>
+              <label>Telefone<input name="novoTelefone" [(ngModel)]="novaFilial.telefone" maxlength="30"></label>
+              <label>Endereço<input name="novoEndereco" [(ngModel)]="novaFilial.endereco" maxlength="250"></label>
+              <label>Fuso horário IANA<input name="novoFuso" [(ngModel)]="novaFilial.fusoHorario" required></label>
+              <label>Nome do primeiro administrador<input name="adminNome" [(ngModel)]="adminNome" required minlength="2" maxlength="120"></label>
+              <label>E-mail do primeiro administrador<input type="email" name="adminEmail" [(ngModel)]="adminEmail" required email></label>
+            </div>
             <button class="button primary" [disabled]="formNovaFilial.invalid || salvando()">Criar filial e enviar convite</button>
           </form>
+          </details>
+          </section>
         }
       }
       @if (filial()) {
-        <h2>Profissionais</h2>
+        <section id="profissionais" class="surface-panel section-card">
+        <div class="section-title"><div><p class="eyebrow">Equipe de atendimento</p><h2>Profissionais</h2></div><app-icon name="users" /></div>
+        <p class="muted-copy">Gerencie quem atende na sua filial.</p>
+        <details class="create-details"><summary><app-icon name="user" /> Adicionar profissional</summary>
         <form (ngSubmit)="criarProfissional()" #formProfissional="ngForm">
           <label>Nome<input name="profNome" [(ngModel)]="profNome" required minlength="2" maxlength="120"></label>
           <label>Apresentação<textarea name="profApresentacao" [(ngModel)]="profApresentacao" maxlength="500"></textarea></label>
           <button class="button primary" [disabled]="formProfissional.invalid || salvando()">Adicionar profissional</button>
         </form>
+        </details>
         <div class="user-list">
           @for (profissional of profissionais(); track profissional.id) {
             <article>
               <div><strong>{{ profissional.nome }}</strong><small>{{ profissional.apresentacao }}</small></div>
               <span class="status">{{ profissional.ativo ? 'Ativo' : 'Inativo' }}</span>
-              <button class="button ghost" (click)="alternarProfissional(profissional)" [disabled]="salvando()">
+              <button class="button ghost small" type="button" (click)="alternarProfissional(profissional)" [disabled]="salvando()">
                 {{ profissional.ativo ? 'Desativar' : 'Ativar' }}
               </button>
-              <button class="button ghost" (click)="editarProfissional(profissional)" [disabled]="salvando()">Editar</button>
+              <button class="button ghost small" type="button" (click)="editarProfissional(profissional)" [disabled]="salvando()">Editar</button>
             </article>
           }
         </div>
+        @if (editando(); as profissional) {
+          <form class="edit-panel" (ngSubmit)="salvarEdicao()" #formEdicao="ngForm">
+            <h3>Editar {{ profissional.nome }}</h3>
+            <label>Nome<input name="edicaoNome" [(ngModel)]="edicaoNome" required minlength="2" maxlength="120"></label>
+            <label>Apresentação<textarea name="edicaoApresentacao" [(ngModel)]="edicaoApresentacao" maxlength="500"></textarea></label>
+            <div class="form-actions"><button class="button primary" [disabled]="formEdicao.invalid || salvando()">Salvar alterações</button>
+              <button class="button ghost" type="button" (click)="editando.set(null)">Cancelar</button></div>
+          </form>
+        }
+        </section>
       }
     </section>
   `
@@ -80,10 +122,12 @@ export class EstabelecimentoAdminComponent implements OnInit {
   readonly filial = signal<Filial | null>(null);
   readonly estabelecimento = signal<Estabelecimento | null>(null);
   readonly profissionais = signal<Profissional[]>([]);
+  readonly editando = signal<Profissional | null>(null);
   readonly erro = signal(''); readonly mensagem = signal(''); readonly salvando = signal(false);
   filialDados: FilialDados = { nome: '', endereco: '', telefone: '', fusoHorario: 'America/Sao_Paulo' };
   novaFilial: FilialDados = { nome: '', endereco: '', telefone: '', fusoHorario: 'America/Sao_Paulo' };
   nomeEstabelecimento = ''; adminNome = ''; adminEmail = ''; profNome = ''; profApresentacao = '';
+  edicaoNome = ''; edicaoApresentacao = '';
 
   ngOnInit(): void { this.carregar(); }
 
@@ -147,14 +191,18 @@ export class EstabelecimentoAdminComponent implements OnInit {
   }
 
   editarProfissional(profissional: Profissional): void {
-    const filial = this.filial(); if (!filial) { return; }
-    const nome = window.prompt('Nome do profissional', profissional.nome);
-    if (nome === null) { return; }
-    const apresentacao = window.prompt('Apresentação pública', profissional.apresentacao ?? '');
-    if (apresentacao === null) { return; }
+    this.editando.set(profissional);
+    this.edicaoNome = profissional.nome;
+    this.edicaoApresentacao = profissional.apresentacao ?? '';
+  }
+
+  salvarEdicao(): void {
+    const filial = this.filial(); const profissional = this.editando();
+    if (!filial || !profissional) { return; }
     this.enviar(() => this.api.atualizarProfissional(filial.id,
-      { ...profissional, nome, apresentacao }), () => {
-      this.mensagem.set('Profissional atualizado.'); this.recarregarProfissionais(filial.id);
+      { ...profissional, nome: this.edicaoNome, apresentacao: this.edicaoApresentacao }), () => {
+      this.editando.set(null); this.mensagem.set('Profissional atualizado.');
+      this.recarregarProfissionais(filial.id);
     });
   }
 

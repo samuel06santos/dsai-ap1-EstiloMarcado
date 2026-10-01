@@ -2,6 +2,7 @@ package br.ufpa.dsai.estilomarcado.autenticacao;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -277,6 +278,111 @@ class AutenticacaoIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nome", is("Novo Nome")))
                 .andExpect(jsonPath("$.perfil", is("CLIENTE")));
+    }
+
+    @Test
+    void perfilSalvaNormalizaERemoveTelefoneSemAlterarIdentidade() throws Exception {
+        Usuario usuario = clienteAtivo("cliente@example.com", "Senha123");
+        Cookie sessao = login("cliente@example.com", "Senha123").andExpect(status().isOk())
+                .andReturn().getResponse().getCookie("SESSION");
+
+        mockMvc.perform(get("/api/usuarios/me").cookie(sessao))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.telefoneContato", nullValue()))
+                .andExpect(jsonPath("$.filial", nullValue()))
+                .andExpect(jsonPath("$.estabelecimento", nullValue()));
+
+        mockMvc.perform(patch("/api/usuarios/me").cookie(sessao).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nome\":\"Nome Atualizado\",\"telefoneContato\":\"(91) 99999-1234\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.telefoneContato", is("+5591999991234")));
+        mockMvc.perform(get("/api/autenticacao/sessao").cookie(sessao))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nome", is("Nome Atualizado")));
+        mockMvc.perform(get("/api/usuarios/me").cookie(sessao))
+                .andExpect(jsonPath("$.telefoneContato", is("+5591999991234")));
+
+        mockMvc.perform(patch("/api/usuarios/me").cookie(sessao).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nome\":\"Nome Atualizado\"}"))
+                .andExpect(jsonPath("$.telefoneContato", is("+5591999991234")));
+        mockMvc.perform(patch("/api/usuarios/me").cookie(sessao).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nome\":\"Nome Atualizado\",\"telefoneContato\":null}"))
+                .andExpect(jsonPath("$.telefoneContato", nullValue()));
+        assertEquals("cliente@example.com", usuarioRepository.findById(usuario.getId()).orElseThrow().getEmail());
+    }
+
+    @Test
+    void perfilRejeitaTelefoneInvalidoECamposProtegidos() throws Exception {
+        clienteAtivo("cliente@example.com", "Senha123");
+        Cookie sessao = login("cliente@example.com", "Senha123").andExpect(status().isOk())
+                .andReturn().getResponse().getCookie("SESSION");
+
+        mockMvc.perform(patch("/api/usuarios/me").cookie(sessao).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nome\":\"Cliente\",\"telefoneContato\":\"99999-1234\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensagem", containsString("telefoneContato")));
+        for (String campo : new String[] {"email", "perfil", "estado", "unidadeId",
+                "profissionalId", "estabelecimentoId"}) {
+            mockMvc.perform(patch("/api/usuarios/me").cookie(sessao).with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"nome\":\"Cliente\",\"" + campo + "\":1}"))
+                    .andExpect(status().isBadRequest());
+        }
+        mockMvc.perform(get("/api/usuarios/me")).andExpect(status().isUnauthorized());
+        mockMvc.perform(patch("/api/usuarios/me").cookie(sessao)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"nome\":\"Cliente\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void perfilInternoMostraSomenteOProprioVinculoETelefonePessoalNaoVaza() throws Exception {
+        Cookie admin = loginAdmin(unidade);
+        mockMvc.perform(get("/api/usuarios/me").cookie(admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.filial.id", is(unidade.getId().intValue())))
+                .andExpect(jsonPath("$.filial.nome", is("Unidade Centro")))
+                .andExpect(jsonPath("$.estabelecimento.nome", is("Unidade Centro")));
+        mockMvc.perform(patch("/api/usuarios/me").cookie(admin).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nome\":\"Administrador\",\"telefoneContato\":\"+351912345678\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.telefoneContato", is("+351912345678")));
+        mockMvc.perform(get("/api/unidades/{id}/usuarios-internos", unidade.getId()).cookie(admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].telefoneContato").doesNotExist());
+    }
+
+    @Test
+    void minhaFilialLeDadosDaContaMesmoInativaESemAceitarIdAlheio() throws Exception {
+        unidade.setEndereco("Rua das Flores, 10");
+        unidade.setTelefone("(91) 3000-1000");
+        unidade.setAtiva(false);
+        unidadeRepository.save(unidade);
+        String email = "profissional@example.com";
+        usuarioRepository.save(new Usuario("Ana", email, email,
+                passwordEncoder.encode("Senha123"), PerfilUsuario.PROFISSIONAL,
+                EstadoConta.ATIVA, unidade, profissional));
+        Cookie sessao = login(email, "Senha123").andExpect(status().isOk())
+                .andReturn().getResponse().getCookie("SESSION");
+
+        mockMvc.perform(get("/api/unidades/me").cookie(sessao))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id", is(unidade.getId().intValue())))
+                .andExpect(jsonPath("$.endereco", is("Rua das Flores, 10")))
+                .andExpect(jsonPath("$.telefone", is("(91) 3000-1000")))
+                .andExpect(jsonPath("$.ativa", is(false)));
+        mockMvc.perform(get("/api/unidades/{id}", outraUnidade.getId()).cookie(sessao))
+                .andExpect(status().isForbidden());
+
+        clienteAtivo("cliente@example.com", "Senha123");
+        Cookie cliente = login("cliente@example.com", "Senha123").andExpect(status().isOk())
+                .andReturn().getResponse().getCookie("SESSION");
+        mockMvc.perform(get("/api/unidades/me").cookie(cliente))
+                .andExpect(status().isForbidden());
     }
 
     @Test

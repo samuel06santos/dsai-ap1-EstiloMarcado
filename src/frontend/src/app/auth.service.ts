@@ -18,6 +18,12 @@ export interface Usuario extends Sessao {
   estado: Estado;
 }
 
+export interface MeuPerfil extends Usuario {
+  telefoneContato: string | null;
+  filial: { id: number; nome: string; ativa: boolean } | null;
+  estabelecimento: { id: number; nome: string } | null;
+}
+
 export interface ErroApi {
   mensagem?: string;
   campos?: Record<string, string>;
@@ -80,12 +86,16 @@ export class AuthService {
     );
   }
 
-  meuPerfil(): Observable<Usuario> {
-    return this.http.get<Usuario>('/api/usuarios/me');
+  meuPerfil(): Observable<MeuPerfil> {
+    return this.http.get<MeuPerfil>('/api/usuarios/me');
   }
 
-  atualizarNome(nome: string): Observable<Usuario> {
-    return this.mutacao(() => this.http.patch<Usuario>('/api/usuarios/me', { nome }));
+  atualizarPerfil(nome: string, telefoneContato: string | null): Observable<MeuPerfil> {
+    return this.mutacao(() => this.http.patch<MeuPerfil>('/api/usuarios/me',
+      { nome, telefoneContato })).pipe(tap(perfil => {
+        const sessao = this.sessao();
+        if (sessao) { this.sessao.set({ ...sessao, nome: perfil.nome }); }
+      }));
   }
 
   listarUsuarios(unidadeId: number): Observable<Usuario[]> {

@@ -3,7 +3,8 @@ package br.ufpa.dsai.estilomarcado.autenticacao.service;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import br.ufpa.dsai.estilomarcado.autenticacao.api.dto.UsuarioResponse;
+import br.ufpa.dsai.estilomarcado.autenticacao.api.dto.AtualizarPerfilRequest;
+import br.ufpa.dsai.estilomarcado.autenticacao.api.dto.MeuPerfilResponse;
 import br.ufpa.dsai.estilomarcado.autenticacao.repository.UsuarioRepository;
 import br.ufpa.dsai.estilomarcado.autenticacao.security.UsuarioAtual;
 import br.ufpa.dsai.estilomarcado.catalogo.api.exception.RecursoNaoEncontradoException;
@@ -20,18 +21,43 @@ public class PerfilService {
     }
 
     @Transactional(readOnly = true)
-    public UsuarioResponse consultar() {
+    public MeuPerfilResponse consultar() {
         Long id = usuarioAtual.get().id();
-        return repository.findById(id).map(UsuarioResponse::from)
+        return repository.findById(id).map(MeuPerfilResponse::from)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("usuario nao encontrado"));
     }
 
     @Transactional
-    public UsuarioResponse atualizarNome(String nome) {
+    public MeuPerfilResponse atualizar(AtualizarPerfilRequest request) {
         Long id = usuarioAtual.get().id();
         var usuario = repository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("usuario nao encontrado"));
-        usuario.setNome(nome.trim());
-        return UsuarioResponse.from(repository.save(usuario));
+        usuario.setNome(request.nome());
+        if (request.telefoneInformado()) {
+            usuario.setTelefoneContato(normalizarTelefone(request.telefoneContato()));
+        }
+        return MeuPerfilResponse.from(repository.save(usuario));
+    }
+
+    private String normalizarTelefone(String valor) {
+        if (valor == null || valor.isBlank()) {
+            return null;
+        }
+        String texto = valor.trim();
+        if (!texto.matches("\\+?[0-9() .-]+")) {
+            throw new IllegalArgumentException("telefoneContato invalido");
+        }
+        String digitos = texto.replaceAll("\\D", "");
+        if (!texto.startsWith("+")) {
+            if ((digitos.length() != 10 && digitos.length() != 11)
+                    || digitos.charAt(0) == '0') {
+                throw new IllegalArgumentException("telefoneContato deve incluir DDD");
+            }
+            digitos = "55" + digitos;
+        }
+        if (!digitos.matches("[1-9][0-9]{7,14}")) {
+            throw new IllegalArgumentException("telefoneContato invalido");
+        }
+        return "+" + digitos;
     }
 }

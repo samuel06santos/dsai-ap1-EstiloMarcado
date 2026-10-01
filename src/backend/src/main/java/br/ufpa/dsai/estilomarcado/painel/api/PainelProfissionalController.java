@@ -5,7 +5,6 @@ import java.util.List;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -23,17 +22,9 @@ public class PainelProfissionalController {
         this.painelProfissionalService = painelProfissionalService;
     }
 
-    /**
-     * Agenda do dia do profissional autenticado.
-     *
-     * <p>A identificacao do profissional vem do cabecalho {@code X-Profissional-Id},
-     * que representa o usuario autenticado nesta versao inicial. A spec de
-     * autenticacao substituira esse cabecalho pelo contexto de seguranca.</p>
-     */
     @GetMapping("/agenda")
     public List<AgendaAtendimentoResponse> agenda(
-            @RequestHeader(name = "X-Profissional-Id", required = false) Long profissionalId,
             @RequestParam("data") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data) {
-        return painelProfissionalService.agendaDoDia(profissionalId, data);
+        return painelProfissionalService.agendaAutenticada(data);
     }
 }

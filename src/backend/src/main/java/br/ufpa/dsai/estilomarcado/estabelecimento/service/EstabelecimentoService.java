@@ -116,6 +116,16 @@ public class EstabelecimentoService {
         return FilialResponse.from(exigirAdministradorDaFilial(unidadeId, false));
     }
 
+    @Transactional(readOnly = true)
+    public FilialResponse consultarMinhaFilial() {
+        var usuario = usuarios.findById(usuarioAtual.get().id())
+                .orElseThrow(() -> new AccessDeniedException("acesso negado"));
+        if (usuario.getPerfil() == PerfilUsuario.CLIENTE || usuario.getUnidade() == null) {
+            throw new AccessDeniedException("acesso negado");
+        }
+        return FilialResponse.from(usuario.getUnidade());
+    }
+
     @Transactional
     public FilialResponse atualizarFilial(Long unidadeId, FilialRequest request, String origem) {
         Unidade unidade = exigirAdministradorDaFilial(unidadeId, false);

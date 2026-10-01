@@ -3,6 +3,11 @@ package br.ufpa.dsai.estilomarcado.painel;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -13,8 +18,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -24,6 +33,10 @@ import br.ufpa.dsai.estilomarcado.agendamento.model.AtendimentoStatus;
 import br.ufpa.dsai.estilomarcado.agendamento.model.Cliente;
 import br.ufpa.dsai.estilomarcado.agendamento.repository.AtendimentoRepository;
 import br.ufpa.dsai.estilomarcado.agendamento.repository.ClienteRepository;
+import br.ufpa.dsai.estilomarcado.autenticacao.model.EstadoConta;
+import br.ufpa.dsai.estilomarcado.autenticacao.model.PerfilUsuario;
+import br.ufpa.dsai.estilomarcado.autenticacao.model.Usuario;
+import br.ufpa.dsai.estilomarcado.autenticacao.repository.UsuarioRepository;
 import br.ufpa.dsai.estilomarcado.catalogo.model.Profissional;
 import br.ufpa.dsai.estilomarcado.catalogo.model.Servico;
 import br.ufpa.dsai.estilomarcado.catalogo.model.Unidade;
@@ -35,6 +48,7 @@ import br.ufpa.dsai.estilomarcado.painel.api.exception.PerfilNaoIdentificadoExce
 import br.ufpa.dsai.estilomarcado.painel.service.PainelProfissionalService;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 @Testcontainers
 class PainelProfissionalIntegrationTest {
 
@@ -44,6 +58,10 @@ class PainelProfissionalIntegrationTest {
 
     @Autowired
     PainelProfissionalService painelProfissionalService;
+
+    @Autowired MockMvc mockMvc;
+    @Autowired UsuarioRepository usuarioRepository;
+    @Autowired PasswordEncoder passwordEncoder;
 
     @Autowired
     JdbcTemplate jdbcTemplate;
@@ -72,6 +90,11 @@ class PainelProfissionalIntegrationTest {
 
     @BeforeEach
     void prepararBanco() {
+        jdbcTemplate.execute("DELETE FROM spring_session_attributes");
+        jdbcTemplate.execute("DELETE FROM spring_session");
+        jdbcTemplate.execute("DELETE FROM evento_seguranca");
+        jdbcTemplate.execute("DELETE FROM token_usuario");
+        jdbcTemplate.execute("DELETE FROM usuario");
         jdbcTemplate.execute("DELETE FROM atendimento");
         jdbcTemplate.execute("DELETE FROM servico_profissional");
         jdbcTemplate.execute("DELETE FROM servico");
@@ -134,6 +157,45 @@ class PainelProfissionalIntegrationTest {
     void deveRejeitarRequisicaoSemProfissionalIdentificado() {
         assertThrows(PerfilNaoIdentificadoException.class,
                 () -> painelProfissionalService.agendaDoDia(null, DIA));
+    }
+
+    @Test
+    void rotaDeAgendaUsaVinculoDaSessaoEIgnoraCabecalhoAdulterado() throws Exception {
+        agendar(profissional, LocalDateTime.of(2026, 10, 1, 9, 0), AtendimentoStatus.CONFIRMADO);
+        agendar(outroProfissional, LocalDateTime.of(2026, 10, 1, 10, 0), AtendimentoStatus.CONFIRMADO);
+        var sessao = login(profissional, PerfilUsuario.PROFISSIONAL);
+
+        mockMvc.perform(get("/api/painel/agenda?data=2026-10-01")
+                        .cookie(sessao).header("X-Profissional-Id", outroProfissional.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].inicio").value("2026-10-01T09:00:00"));
+        mockMvc.perform(get("/api/painel/agenda?data=2026-10-01"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void rotaDeAgendaRejeitaClienteEProfissionalInativo() throws Exception {
+        var clienteSessao = login(null, PerfilUsuario.CLIENTE);
+        mockMvc.perform(get("/api/painel/agenda?data=2026-10-01").cookie(clienteSessao))
+                .andExpect(status().isForbidden());
+
+        var profissionalSessao = login(profissional, PerfilUsuario.PROFISSIONAL);
+        profissional.setAtivo(false);
+        profissionalRepository.save(profissional);
+        mockMvc.perform(get("/api/painel/agenda?data=2026-10-01").cookie(profissionalSessao))
+                .andExpect(status().isForbidden());
+    }
+
+    private jakarta.servlet.http.Cookie login(Profissional vinculo, PerfilUsuario perfil) throws Exception {
+        String email = perfil.name().toLowerCase() + usuarioRepository.count() + "@example.com";
+        usuarioRepository.save(new Usuario("Pessoa Teste", email, email,
+                passwordEncoder.encode("Senha123"), perfil, EstadoConta.ATIVA,
+                vinculo == null ? null : vinculo.getUnidade(), vinculo));
+        return mockMvc.perform(post("/api/autenticacao/sessoes").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\",\"senha\":\"Senha123\"}"))
+                .andExpect(status().isOk()).andReturn().getResponse().getCookie("SESSION");
     }
 
     private void agendar(Profissional profissional, LocalDateTime inicio, AtendimentoStatus status) {

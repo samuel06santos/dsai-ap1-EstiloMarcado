@@ -1,12 +1,13 @@
 import { bootstrapApplication } from '@angular/platform-browser';
 import { provideHttpClient, withInterceptors, withXsrfConfiguration } from '@angular/common/http';
-import { provideRouter, Routes } from '@angular/router';
+import { provideRouter, Routes, withInMemoryScrolling } from '@angular/router';
 import { AppComponent } from './app/app.component';
-import { administradorGuard, autenticadoGuard } from './app/auth.guard';
+import { administradorGuard, autenticadoGuard, internoGuard, profissionalGuard } from './app/auth.guard';
 import { credentialsInterceptor } from './app/auth.service';
 import { AtivacaoComponent, CadastroComponent, ContaComponent, HomeComponent, LoginComponent,
   NovaSenhaComponent, RecuperacaoComponent, UsuariosAdminComponent } from './app/auth-pages';
 import { EstabelecimentoAdminComponent, FilialPublicaComponent } from './app/estabelecimento-pages';
+import { AgendaProfissionalComponent, MinhaFilialComponent } from './app/workspace-pages';
 
 const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -17,6 +18,9 @@ const routes: Routes = [
   { path: 'redefinir-senha', component: NovaSenhaComponent },
   { path: 'convite', component: NovaSenhaComponent, data: { convite: true } },
   { path: 'conta', component: ContaComponent, canActivate: [autenticadoGuard] },
+  { path: 'minha-filial', component: MinhaFilialComponent, canActivate: [internoGuard] },
+  { path: 'profissional/agenda', component: AgendaProfissionalComponent,
+    canActivate: [profissionalGuard] },
   { path: 'administracao/usuarios', component: UsuariosAdminComponent, canActivate: [administradorGuard] },
   { path: 'administracao/estabelecimento', component: EstabelecimentoAdminComponent,
     canActivate: [administradorGuard] },
@@ -26,7 +30,7 @@ const routes: Routes = [
 
 bootstrapApplication(AppComponent, {
   providers: [
-    provideRouter(routes),
+    provideRouter(routes, withInMemoryScrolling({ anchorScrolling: 'enabled', scrollPositionRestoration: 'enabled' })),
     provideHttpClient(
       withInterceptors([credentialsInterceptor]),
       withXsrfConfiguration({ cookieName: 'XSRF-TOKEN', headerName: 'X-XSRF-TOKEN' })

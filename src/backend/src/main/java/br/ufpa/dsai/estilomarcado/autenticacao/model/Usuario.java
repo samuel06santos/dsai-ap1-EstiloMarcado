@@ -39,6 +39,9 @@ public class Usuario {
     @Column(name = "senha_hash", length = 100)
     private String senhaHash;
 
+    @Column(name = "telefone_contato", length = 20)
+    private String telefoneContato;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private PerfilUsuario perfil;
@@ -139,6 +142,8 @@ public class Usuario {
     public String getEmail() { return email; }
     public String getEmailNormalizado() { return emailNormalizado; }
     public String getSenhaHash() { return senhaHash; }
+    public String getTelefoneContato() { return telefoneContato; }
+    public void setTelefoneContato(String telefoneContato) { this.telefoneContato = telefoneContato; }
     public PerfilUsuario getPerfil() { return perfil; }
     public void setPerfil(PerfilUsuario perfil) { this.perfil = perfil; }
     public EstadoConta getEstado() { return estado; }

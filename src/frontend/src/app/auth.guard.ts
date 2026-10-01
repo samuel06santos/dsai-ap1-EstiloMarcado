@@ -18,3 +18,22 @@ export const administradorGuard: CanActivateFn = () => {
     : router.createUrlTree(['/']);
   return auth.sessao() === undefined ? auth.carregarSessao().pipe(map(decidir)) : of(decidir());
 };
+
+export const profissionalGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  const decidir = () => auth.sessao()?.perfil === 'PROFISSIONAL'
+    ? true : router.createUrlTree([auth.sessao() ? '/' : '/entrar']);
+  return auth.sessao() === undefined ? auth.carregarSessao().pipe(map(decidir)) : of(decidir());
+};
+
+export const internoGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  const decidir = () => {
+    const perfil = auth.sessao()?.perfil;
+    return perfil && perfil !== 'CLIENTE' ? true
+      : router.createUrlTree([perfil ? '/' : '/entrar']);
+  };
+  return auth.sessao() === undefined ? auth.carregarSessao().pipe(map(decidir)) : of(decidir());
+};
