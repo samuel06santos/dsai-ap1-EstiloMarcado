@@ -28,6 +28,8 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import tools.jackson.databind.ObjectMapper;
+import br.ufpa.dsai.estilomarcado.autenticacao.repository.UsuarioRepository;
+import br.ufpa.dsai.estilomarcado.autenticacao.service.FirebaseIdentityService;
 
 @Configuration
 @EnableMethodSecurity
@@ -62,7 +64,9 @@ public class SegurancaConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http,
                                             SecurityContextRepository contextRepository,
-                                            ObjectMapper objectMapper) throws Exception {
+                                            ObjectMapper objectMapper,
+                                            FirebaseIdentityService firebase,
+                                            UsuarioRepository users) throws Exception {
         CookieCsrfTokenRepository csrfRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
         csrfRepository.setCookiePath("/");
 
@@ -88,6 +92,8 @@ public class SegurancaConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/autenticacao/sessao").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/autenticacao/contas/metodos").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/autenticacao/contas/google").authenticated()
                         .requestMatchers("/api/autenticacao/**").permitAll()
                         .requestMatchers(HttpMethod.GET,
                                 "/api/unidades/*/servicos", "/api/servicos/*").permitAll()
@@ -105,7 +111,8 @@ public class SegurancaConfig {
                 .logout(logout -> logout.disable())
                 .httpBasic(basic -> basic.disable())
                 .formLogin(form -> form.disable())
-                .addFilterBefore(new SessaoAbsolutaFilter(), AuthorizationFilter.class);
+                .addFilterBefore(new SessaoAbsolutaFilter(), AuthorizationFilter.class)
+                .addFilterBefore(new FirebaseSessionValidationFilter(firebase, users), AuthorizationFilter.class);
 
         return http.build();
     }

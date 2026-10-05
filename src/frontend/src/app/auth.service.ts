@@ -1,6 +1,7 @@
 import { HttpClient, HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { computed, inject, Injectable, signal } from '@angular/core';
-import { catchError, map, Observable, of, switchMap, tap } from 'rxjs';
+import { catchError, finalize, from, map, Observable, of, switchMap, tap } from 'rxjs';
+import { FirebaseClientService, FirebasePublicConfig } from './firebase-client.service';
 
 export type Perfil = 'CLIENTE' | 'PROFISSIONAL' | 'RECEPCAO' | 'ADMINISTRADOR';
 export type Estado = 'PENDENTE' | 'ATIVA' | 'BLOQUEADA' | 'DESATIVADA';
@@ -29,12 +30,19 @@ export interface ErroApi {
   campos?: Record<string, string>;
 }
 
+export interface MetodosLogin {
+  firebaseUid: string;
+  google: boolean;
+  emailSenha: boolean;
+}
+
 export const credentialsInterceptor: HttpInterceptorFn = (request, next) =>
   next(request.clone({ withCredentials: true }));
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
+  private readonly firebase = inject(FirebaseClientService);
   readonly sessao = signal<Sessao | null | undefined>(undefined);
   readonly autenticado = computed(() => this.sessao() !== null && this.sessao() !== undefined);
   readonly administrador = computed(() => this.sessao()?.perfil === 'ADMINISTRADOR');
@@ -59,14 +67,47 @@ export class AuthService {
   }
 
   login(email: string, senha: string): Observable<Sessao> {
-    return this.mutacao(() => this.http.post<Sessao>('/api/autenticacao/sessoes', { email, senha })).pipe(
+    return from(this.firebase.config()).pipe(switchMap(config => config.enabled
+      ? from(this.firebase.passwordToken(email, senha)).pipe(
+          switchMap(idToken => this.mutacao(() => this.http.post<Sessao>(
+            '/api/autenticacao/sessoes/firebase', { idToken }))),
+          finalize(() => { void this.firebase.clear(); }))
+      : this.mutacao(() => this.http.post<Sessao>('/api/autenticacao/sessoes', { email, senha })))).pipe(
       tap((sessao) => this.sessao.set(sessao))
+    );
+  }
+
+  loginGoogle(): Observable<Sessao> {
+    return from(this.firebase.googleToken()).pipe(
+      switchMap(idToken => this.mutacao(() => this.http.post<Sessao>(
+        '/api/autenticacao/sessoes/firebase', { idToken }))),
+      tap(sessao => this.sessao.set(sessao)),
+      finalize(() => { void this.firebase.clear(); })
+    );
+  }
+
+  configuracaoFirebase(): Observable<FirebasePublicConfig> { return from(this.firebase.config()); }
+
+  confirmarEmailFirebase(code: string): Observable<void> {
+    return from(this.firebase.applyVerificationCode(code)).pipe(
+      finalize(() => { void this.firebase.clear(); }));
+  }
+
+  metodosLogin(): Observable<MetodosLogin> {
+    return this.http.get<MetodosLogin>('/api/autenticacao/contas/metodos');
+  }
+
+  vincularGoogle(email: string, senha: string, uid: string): Observable<unknown> {
+    return from(this.firebase.linkGoogle(email, senha, uid)).pipe(
+      switchMap(idToken => this.mutacao(() => this.http.post(
+        '/api/autenticacao/contas/google', { idToken }))),
+      finalize(() => { void this.firebase.clear(); })
     );
   }
 
   logout(): Observable<unknown> {
     return this.mutacao(() => this.http.delete('/api/autenticacao/sessao')).pipe(
-      tap(() => this.sessao.set(null))
+      tap(() => { this.sessao.set(null); void this.firebase.clear(); })
     );
   }
 
@@ -118,6 +159,10 @@ export class AuthService {
       const body = error.error as ErroApi | undefined;
       return body?.mensagem ?? 'Nao foi possivel concluir a operacao.';
     }
+    if ((error as { code?: string })?.code?.startsWith('auth/')) {
+      return FirebaseClientService.message(error);
+    }
+    if (error instanceof Error) return error.message;
     return 'Nao foi possivel concluir a operacao.';
   }
 

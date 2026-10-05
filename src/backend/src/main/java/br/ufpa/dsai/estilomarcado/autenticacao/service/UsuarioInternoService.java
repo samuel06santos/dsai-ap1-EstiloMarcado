@@ -6,6 +6,10 @@ import java.util.List;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+
+import com.google.firebase.auth.FirebaseAuthException;
 
 import br.ufpa.dsai.estilomarcado.autenticacao.api.dto.UsuarioInternoPatchRequest;
 import br.ufpa.dsai.estilomarcado.autenticacao.api.dto.UsuarioInternoRequest;
@@ -38,6 +42,7 @@ public class UsuarioInternoService {
     private final UsuarioAtual usuarioAtual;
     private final SessaoService sessaoService;
     private final AuditoriaService auditoria;
+    private final FirebaseIdentityService firebase;
 
     public UsuarioInternoService(UsuarioRepository usuarioRepository,
                                  UnidadeRepository unidadeRepository,
@@ -46,7 +51,8 @@ public class UsuarioInternoService {
                                  EmailAutenticacaoGateway emailGateway,
                                  UsuarioAtual usuarioAtual,
                                  SessaoService sessaoService,
-                                 AuditoriaService auditoria) {
+                                 AuditoriaService auditoria,
+                                 FirebaseIdentityService firebase) {
         this.usuarioRepository = usuarioRepository;
         this.unidadeRepository = unidadeRepository;
         this.profissionalRepository = profissionalRepository;
@@ -55,6 +61,7 @@ public class UsuarioInternoService {
         this.usuarioAtual = usuarioAtual;
         this.sessaoService = sessaoService;
         this.auditoria = auditoria;
+        this.firebase = firebase;
     }
 
     @Transactional(readOnly = true)
@@ -78,9 +85,10 @@ public class UsuarioInternoService {
         Unidade unidade = unidadeRepository.findById(unidadeId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("unidade nao encontrada"));
         Profissional profissional = resolverProfissional(unidadeId, request.perfil(), request.profissionalId(), null);
-        Usuario usuario = usuarioRepository.save(new Usuario(
+        Usuario usuario = usuarioRepository.saveAndFlush(new Usuario(
                 request.nome().trim(), request.email().trim(), normalizado, null,
                 request.perfil(), EstadoConta.PENDENTE, unidade, profissional));
+        provisionarFirebase(usuario);
         String token = tokenService.emitir(usuario, FinalidadeToken.CONVITE, VALIDADE_CONVITE);
         emailGateway.enviarConvite(usuario.getEmail(), usuario.getNome(), token);
         auditoria.registrar(usuario.getId(), "CONTA_INTERNA_CRIADA", true, origem,
@@ -118,7 +126,8 @@ public class UsuarioInternoService {
         usuario.setProfissional(profissional);
 
         if (request.estado() != null) {
-            if (request.estado() == EstadoConta.ATIVA && usuario.getSenhaHash() == null) {
+            if (request.estado() == EstadoConta.ATIVA &&
+                    (firebase.enabled() ? !firebaseAtivo(usuario) : usuario.getSenhaHash() == null)) {
                 throw new RegraDeNegocioException("a conta precisa concluir o convite antes de ser ativada");
             }
             usuario.setEstado(request.estado());
@@ -128,6 +137,10 @@ public class UsuarioInternoService {
         }
 
         if (alteraAcesso) {
+            if (firebase.enabled() && request.estado() != null) {
+                try { firebase.disable(usuario.getFirebaseUid(), request.estado() != EstadoConta.ATIVA); }
+                catch (FirebaseAuthException ex) { throw indisponivel(ex); }
+            }
             sessaoService.invalidarTodas(usuario.getEmailNormalizado());
             auditoria.registrar(usuario.getId(), "ACESSO_ALTERADO", true, origem,
                     "perfil=" + usuario.getPerfil() + ",estado=" + usuario.getEstado());
@@ -141,7 +154,8 @@ public class UsuarioInternoService {
         exigirFilialAtiva(unidadeId);
         Usuario usuario = usuarioRepository.findByIdAndUnidadeId(id, unidadeId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("usuario nao encontrado"));
-        if (usuario.getEstado() != EstadoConta.PENDENTE || usuario.getSenhaHash() != null) {
+        if (usuario.getEstado() != EstadoConta.PENDENTE ||
+                (!firebase.enabled() && usuario.getSenhaHash() != null)) {
             throw new RegraDeNegocioException("somente contas pendentes podem receber novo convite");
         }
         String token = tokenService.emitir(usuario, FinalidadeToken.CONVITE, VALIDADE_CONVITE);
@@ -163,9 +177,10 @@ public class UsuarioInternoService {
         }
         Unidade unidade = unidadeRepository.findById(unidadeId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("unidade do bootstrap nao encontrada"));
-        Usuario usuario = usuarioRepository.save(new Usuario(
+        Usuario usuario = usuarioRepository.saveAndFlush(new Usuario(
                 nome.trim(), email.trim(), normalizado, null, PerfilUsuario.ADMINISTRADOR,
                 EstadoConta.PENDENTE, unidade, null));
+        provisionarFirebase(usuario);
         String token = tokenService.emitir(usuario, FinalidadeToken.CONVITE, VALIDADE_CONVITE);
         emailGateway.enviarConvite(usuario.getEmail(), usuario.getNome(), token);
         auditoria.registrar(usuario.getId(), "PRIMEIRO_ADMIN_PROVISIONADO", true, "bootstrap", null);
@@ -178,9 +193,10 @@ public class UsuarioInternoService {
         if (usuarioRepository.existsByEmailNormalizado(normalizado)) {
             throw new ConflitoException("ja existe uma conta com este e-mail");
         }
-        Usuario usuario = usuarioRepository.save(new Usuario(
+        Usuario usuario = usuarioRepository.saveAndFlush(new Usuario(
                 nome.trim(), email.trim(), normalizado, null, PerfilUsuario.ADMINISTRADOR,
                 EstadoConta.PENDENTE, unidade, null));
+        provisionarFirebase(usuario);
         String token = tokenService.emitir(usuario, FinalidadeToken.CONVITE, VALIDADE_CONVITE);
         emailGateway.enviarConvite(usuario.getEmail(), usuario.getNome(), token);
         auditoria.registrar(usuario.getId(), "PRIMEIRO_ADMIN_PROVISIONADO", true, origem,
@@ -191,6 +207,29 @@ public class UsuarioInternoService {
         if (perfil == null || perfil == PerfilUsuario.CLIENTE) {
             throw new RegraDeNegocioException("perfil de conta interna invalido");
         }
+    }
+
+    private void provisionarFirebase(Usuario usuario) {
+        if (!firebase.enabled()) return;
+        String uid = firebase.uidFor(usuario.getId());
+        try {
+            firebase.createUser(uid, usuario.getEmail(), usuario.getNome(), null, false, true);
+            firebase.deleteIfLocalRollback(uid);
+            usuario.setFirebaseUid(uid);
+        } catch (FirebaseAuthException ex) { throw indisponivel(ex); }
+    }
+
+    private boolean firebaseAtivo(Usuario usuario) {
+        if (usuario.getFirebaseUid() == null) return false;
+        try {
+            var remoto = firebase.getUser(usuario.getFirebaseUid());
+            return remoto.isEmailVerified() && !remoto.isDisabled();
+        } catch (FirebaseAuthException ex) { throw indisponivel(ex); }
+    }
+
+    private ResponseStatusException indisponivel(Exception ex) {
+        return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                "servico de identidade indisponivel", ex);
     }
 
     private void exigirFilialAtiva(Long unidadeId) {

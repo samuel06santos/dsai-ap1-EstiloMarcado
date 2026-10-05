@@ -83,6 +83,10 @@ enviado pelo navegador.
 
 ### 4.1 Autenticação e controle de acesso
 
+> A integração com Firebase Authentication para senha e Google é configurada em
+> [deploy/FIREBASE_AUTH.md](deploy/FIREBASE_AUTH.md). O fluxo abaixo descreve a
+> autenticação anterior enquanto `FIREBASE_AUTH_ENABLED=false`.
+
 - Cadastro de cliente com ativação por e-mail (link com token).
 - Convite de contas internas (profissional, recepção, administrador) enviado
   pelo administrador.

@@ -4,7 +4,7 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
-import { AuthService, ErroApi, MeuPerfil, Perfil, Usuario } from './auth.service';
+import { AuthService, ErroApi, MeuPerfil, MetodosLogin, Perfil, Usuario } from './auth.service';
 import { UiIconComponent } from './ui-icon.component';
 import { EstabelecimentoService, Profissional } from './estabelecimento.service';
 import { PainelClienteComponent } from './painel-cliente-pages';
@@ -69,11 +69,17 @@ export class HomeComponent { readonly auth = inject(AuthService); }
         @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
         <button class="button primary" [disabled]="form.invalid || enviando()">{{ enviando() ? 'Entrando…' : 'Entrar' }}</button>
       </form>
+      @if (firebaseAtivo()) {
+        <p class="field-help">Ou entre com sua conta Google.</p>
+        <button class="button ghost" type="button" [disabled]="enviando()" (click)="entrarGoogle()">
+          {{ enviando() ? 'Aguarde…' : 'Continuar com Google' }}
+        </button>
+      }
       <div class="auth-links"><a routerLink="/recuperar-conta">Esqueci minha senha</a><a routerLink="/cadastro">Criar conta</a></div>
     </section>
   `
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -81,11 +87,31 @@ export class LoginComponent {
   senha = '';
   readonly erro = signal('');
   readonly enviando = signal(false);
+  readonly firebaseAtivo = signal(false);
+
+  ngOnInit(): void {
+    this.auth.configuracaoFirebase().subscribe({
+      next: config => this.firebaseAtivo.set(config.enabled),
+      error: () => this.erro.set('Não foi possível carregar os métodos de login.')
+    });
+  }
 
   enviar(): void {
     this.erro.set(''); this.enviando.set(true);
     this.auth.login(this.email, this.senha).pipe(finalize(() => this.enviando.set(false)))
-      .subscribe({ next: (sessao) => {
+      .subscribe({ next: (sessao) => this.redirecionar(sessao),
+        error: (e) => this.erro.set(AuthService.mensagemErro(e)) });
+  }
+
+  entrarGoogle(): void {
+    if (this.enviando()) return;
+    this.erro.set(''); this.enviando.set(true);
+    this.auth.loginGoogle().pipe(finalize(() => this.enviando.set(false)))
+      .subscribe({ next: sessao => this.redirecionar(sessao),
+        error: e => this.erro.set(AuthService.mensagemErro(e)) });
+  }
+
+  private redirecionar(sessao: { perfil: Perfil }): void {
         const destino = sessao.perfil === 'PROFISSIONAL' ? '/profissional/agenda'
           : sessao.perfil === 'ADMINISTRADOR' ? '/administracao/estabelecimento'
           : sessao.perfil === 'RECEPCAO' ? '/equipe/agendamentos' : '/';
@@ -93,7 +119,6 @@ export class LoginComponent {
         const seguro = sessao.perfil === 'CLIENTE' && retorno?.startsWith('/unidades/')
           && !retorno.startsWith('//') && !retorno.includes('://');
         void this.router.navigateByUrl(seguro && retorno ? retorno : destino);
-      }, error: (e) => this.erro.set(AuthService.mensagemErro(e)) });
   }
 }
 
@@ -148,10 +173,44 @@ export class AtivacaoComponent implements OnInit {
   readonly mensagem = signal('Validando seu link…'); readonly erro = signal(false);
   ngOnInit(): void {
     const token = this.route.snapshot.queryParamMap.get('token') ?? '';
-    this.auth.ativar(token).subscribe({
-      next: () => this.mensagem.set('Conta ativada. Agora voce pode entrar.'),
-      error: (e) => { this.erro.set(true); this.mensagem.set(AuthService.mensagemErro(e)); }
+    const code = this.route.snapshot.queryParamMap.get('oobCode');
+    this.auth.configuracaoFirebase().subscribe({
+      next: config => {
+        if (config.enabled && !code) {
+          this.mensagem.set('Confirme o e-mail pelo link recebido e depois entre na sua conta.');
+          return;
+        }
+        (config.enabled ? this.auth.confirmarEmailFirebase(code!) : this.auth.ativar(token)).subscribe({
+          next: () => this.mensagem.set('E-mail confirmado. Agora você pode entrar.'),
+          error: e => { this.erro.set(true); this.mensagem.set(AuthService.mensagemErro(e)); }
+        });
+      },
+      error: () => { this.erro.set(true); this.mensagem.set('Não foi possível verificar o link.'); }
     });
+  }
+}
+
+@Component({
+  standalone: true,
+  imports: [RouterLink],
+  template: `<section class="auth-card"><h1>Ação de e-mail</h1>
+    <p class="notice" role="status">{{ mensagem() }}</p>
+    <a routerLink="/entrar">Voltar ao login</a></section>`
+})
+export class FirebaseEmailActionComponent implements OnInit {
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  readonly mensagem = signal('Validando o link…');
+
+  ngOnInit(): void {
+    const code = this.route.snapshot.queryParamMap.get('oobCode');
+    const mode = this.route.snapshot.queryParamMap.get('mode');
+    if (!code || !['verifyEmail', 'resetPassword'].includes(mode ?? '')) {
+      this.mensagem.set('Este link não é válido. Solicite um novo.');
+      return;
+    }
+    const destino = mode === 'verifyEmail' ? '/ativar' : '/redefinir-senha';
+    void this.router.navigate([destino], { queryParams: { oobCode: code }, replaceUrl: true });
   }
 }
 
@@ -188,7 +247,8 @@ export class NovaSenhaComponent {
   senha = ''; confirmacao = ''; readonly sucesso = signal(false); readonly erro = signal('');
   enviar(): void {
     if (this.senha !== this.confirmacao) { this.erro.set('A confirmacao da senha nao confere.'); return; }
-    const token = this.route.snapshot.queryParamMap.get('token') ?? '';
+    const token = this.route.snapshot.queryParamMap.get(this.convite ? 'token' : 'oobCode')
+      ?? this.route.snapshot.queryParamMap.get('token') ?? '';
     const acao = this.convite ? this.auth.aceitarConvite(token, this.senha, this.confirmacao) : this.auth.redefinir(token, this.senha, this.confirmacao);
     acao.subscribe({ next: () => this.sucesso.set(true), error: (e) => this.erro.set(AuthService.mensagemErro(e)) });
   }
@@ -227,6 +287,22 @@ export class NovaSenhaComponent {
             </form>
           </div>
         </div>
+        @if (metodos(); as m) {
+          @if (m.firebaseUid) {
+            <div class="surface-panel section-card">
+              <div class="section-title"><div><p class="eyebrow">Acesso</p><h2>Formas de entrar</h2></div></div>
+              <p>E-mail e senha: {{ m.emailSenha ? 'Disponível' : 'Não configurado' }}</p>
+              <p>Google: {{ m.google ? 'Vinculado' : 'Não vinculado' }}</p>
+              @if (!m.google && m.emailSenha) {
+                <label>Confirme sua senha para vincular o Google
+                  <input type="password" [(ngModel)]="senhaVinculo" autocomplete="current-password">
+                </label>
+                <button class="button ghost" type="button" [disabled]="!senhaVinculo || vinculando()"
+                  (click)="vincularGoogle()">{{ vinculando() ? 'Vinculando…' : 'Vincular Google' }}</button>
+              }
+            </div>
+          }
+        }
         @if (u.filial && u.estabelecimento) {
           <div class="surface-panel affiliation-panel">
             <div class="section-title"><div><p class="eyebrow">Seu local de trabalho</p><h2>Meu vínculo</h2></div><app-icon name="building" /></div>
@@ -249,13 +325,28 @@ export class ContaComponent implements OnInit {
   readonly erro = signal('');
   readonly errosCampos = signal<Record<string, string>>({});
   readonly salvando = signal(false);
+  readonly metodos = signal<MetodosLogin | null>(null);
+  readonly vinculando = signal(false);
   nome = '';
   telefone = '';
+  senhaVinculo = '';
   ngOnInit(): void {
     this.auth.meuPerfil().subscribe({
       next: u => { this.usuario.set(u); this.nome = u.nome; this.telefone = u.telefoneContato ?? ''; },
       error: e => this.erro.set(AuthService.mensagemErro(e))
     });
+    this.auth.metodosLogin().subscribe({ next: m => this.metodos.set(m) });
+  }
+  vincularGoogle(): void {
+    const m = this.metodos(); const u = this.usuario();
+    if (!m?.firebaseUid || !u || !this.senhaVinculo || this.vinculando()) return;
+    this.erro.set(''); this.mensagem.set(''); this.vinculando.set(true);
+    this.auth.vincularGoogle(u.email, this.senhaVinculo, m.firebaseUid)
+      .pipe(finalize(() => { this.vinculando.set(false); this.senhaVinculo = ''; }))
+      .subscribe({ next: () => {
+        this.mensagem.set('Google vinculado à sua conta.');
+        this.auth.metodosLogin().subscribe({ next: atual => this.metodos.set(atual) });
+      }, error: e => this.erro.set(AuthService.mensagemErro(e)) });
   }
   tituloPerfil(perfil: Perfil): string {
     return { CLIENTE: 'Cliente', PROFISSIONAL: 'Profissional',

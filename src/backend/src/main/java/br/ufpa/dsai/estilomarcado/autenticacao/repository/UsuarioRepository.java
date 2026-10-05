@@ -19,7 +19,13 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     @Query("select u from Usuario u where u.id = :id")
     Optional<Usuario> bloquearPorId(@Param("id") Long id);
 
+    @Query("select u from Usuario u left join fetch u.unidade left join fetch u.profissional where u.id = :id")
+    Optional<Usuario> findForSessionById(@Param("id") Long id);
+
     Optional<Usuario> findByEmailNormalizado(String emailNormalizado);
+    Optional<Usuario> findByFirebaseUid(String firebaseUid);
+    boolean existsByFirebaseUid(String firebaseUid);
+    long countByFirebaseUidIsNull();
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Usuario> findWithLockByEmailNormalizado(String emailNormalizado);

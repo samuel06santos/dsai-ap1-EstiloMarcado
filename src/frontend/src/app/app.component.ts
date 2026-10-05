@@ -112,7 +112,7 @@ export class AppComponent implements OnInit {
   readonly adminPrincipal = signal(false);
   readonly filialSelecionada = signal<number | null>(null);
   readonly paginaPublica = computed(() =>
-    /^\/(entrar|cadastro|ativar|recuperar-conta|redefinir-senha|convite|unidades\/)/
+    /^\/(entrar|cadastro|ativar|acao-email|recuperar-conta|redefinir-senha|convite|unidades\/)/
       .test(this.urlAtual()));
   readonly itens = computed<NavItem[]>(() => {
     const sessao = this.auth.sessao();

@@ -4,7 +4,7 @@ import { provideRouter, Routes, withInMemoryScrolling } from '@angular/router';
 import { AppComponent } from './app/app.component';
 import { administradorGuard, autenticadoGuard, equipeGuard, internoGuard, profissionalGuard } from './app/auth.guard';
 import { credentialsInterceptor } from './app/auth.service';
-import { AtivacaoComponent, CadastroComponent, ContaComponent, HomeComponent, LoginComponent,
+import { AtivacaoComponent, CadastroComponent, ContaComponent, FirebaseEmailActionComponent, HomeComponent, LoginComponent,
   NovaSenhaComponent, RecuperacaoComponent, UsuariosAdminComponent } from './app/auth-pages';
 import { EstabelecimentoAdminComponent, FilialPublicaComponent } from './app/estabelecimento-pages';
 import { AgendaProfissionalComponent, MinhaFilialComponent } from './app/workspace-pages';
@@ -19,6 +19,7 @@ const routes: Routes = [
   { path: 'entrar', component: LoginComponent },
   { path: 'cadastro', component: CadastroComponent },
   { path: 'ativar', component: AtivacaoComponent },
+  { path: 'acao-email', component: FirebaseEmailActionComponent },
   { path: 'recuperar-conta', component: RecuperacaoComponent },
   { path: 'redefinir-senha', component: NovaSenhaComponent },
   { path: 'convite', component: NovaSenhaComponent, data: { convite: true } },

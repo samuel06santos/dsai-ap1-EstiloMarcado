@@ -92,3 +92,7 @@ nginx/logs/
 *.rej
 tmp/
 temp/
+
+# Rascunhos de especificações (nunca versionar)
+/SPEC/temp/
+/deploy/firebase/

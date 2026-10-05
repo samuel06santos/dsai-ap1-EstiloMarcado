@@ -33,7 +33,17 @@ server:
 
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:4200}
+  mail-from: ${MAIL_FROM:nao-responda@estilomarcado.local}
   auth:
+    firebase:
+      enabled: ${FIREBASE_AUTH_ENABLED:false}
+      import-existing: ${FIREBASE_AUTH_IMPORT_EXISTING:false}
+      project-id: ${FIREBASE_PROJECT_ID:}
+      web-api-key: ${FIREBASE_WEB_API_KEY:}
+      web-auth-domain: ${FIREBASE_WEB_AUTH_DOMAIN:}
+      web-app-id: ${FIREBASE_WEB_APP_ID:}
+      emulator-browser-url: ${FIREBASE_AUTH_EMULATOR_BROWSER_URL:}
+      credentials-path: ${FIREBASE_ADMIN_CREDENTIALS_PATH:}
     password-cost: ${AUTH_PASSWORD_COST:12}
     allowed-origins: ${AUTH_ALLOWED_ORIGINS:http://localhost:4200}
     bootstrap:

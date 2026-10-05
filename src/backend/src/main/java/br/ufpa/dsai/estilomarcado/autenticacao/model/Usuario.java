@@ -39,6 +39,12 @@ public class Usuario {
     @Column(name = "senha_hash", length = 100)
     private String senhaHash;
 
+    @Column(name = "firebase_uid", length = 128, unique = true)
+    private String firebaseUid;
+
+    @Column(name = "senha_firebase", nullable = false)
+    private boolean senhaFirebase;
+
     @Column(name = "telefone_contato", length = 20)
     private String telefoneContato;
 
@@ -142,6 +148,10 @@ public class Usuario {
     public String getEmail() { return email; }
     public String getEmailNormalizado() { return emailNormalizado; }
     public String getSenhaHash() { return senhaHash; }
+    public String getFirebaseUid() { return firebaseUid; }
+    public void setFirebaseUid(String firebaseUid) { this.firebaseUid = firebaseUid; }
+    public boolean isSenhaFirebase() { return senhaFirebase; }
+    public void setSenhaFirebase(boolean senhaFirebase) { this.senhaFirebase = senhaFirebase; }
     public String getTelefoneContato() { return telefoneContato; }
     public void setTelefoneContato(String telefoneContato) { this.telefoneContato = telefoneContato; }
     public PerfilUsuario getPerfil() { return perfil; }

@@ -13,11 +13,14 @@ public class EmailAutenticacaoSmtp implements EmailAutenticacaoGateway {
 
     private final JavaMailSender mailSender;
     private final String frontendUrl;
+    private final String remetente;
 
     public EmailAutenticacaoSmtp(JavaMailSender mailSender,
-                                 @Value("${app.frontend-url}") String frontendUrl) {
+                                 @Value("${app.frontend-url}") String frontendUrl,
+                                 @Value("${app.mail-from:nao-responda@estilomarcado.local}") String remetente) {
         this.mailSender = mailSender;
         this.frontendUrl = frontendUrl.replaceAll("/$", "");
+        this.remetente = remetente;
     }
 
     @Override
@@ -48,13 +51,25 @@ public class EmailAutenticacaoSmtp implements EmailAutenticacaoGateway {
                         + " Se voce nao reconhece esta acao, solicite uma nova recuperacao imediatamente.");
     }
 
+    @Override
+    public void enviarLinkAtivacao(String destinatario, String nome, String url) {
+        enviar(destinatario, "Ative sua conta no Estilo Marcado",
+                "Ola, " + nome + "!\n\nConfirme seu e-mail neste link:\n" + url);
+    }
+
+    @Override
+    public void enviarLinkRecuperacao(String destinatario, String nome, String url) {
+        enviar(destinatario, "Recuperacao de conta do Estilo Marcado",
+                "Ola, " + nome + "!\n\nRedefina sua senha neste link:\n" + url);
+    }
+
     private String link(String caminho, String token) {
         return frontendUrl + caminho + "?token=" + URLEncoder.encode(token, StandardCharsets.UTF_8);
     }
 
     private void enviar(String destinatario, String assunto, String texto) {
         SimpleMailMessage mensagem = new SimpleMailMessage();
-        mensagem.setFrom("nao-responda@estilomarcado.local");
+        mensagem.setFrom(remetente);
         mensagem.setTo(destinatario);
         mensagem.setSubject(assunto);
         mensagem.setText(texto);
