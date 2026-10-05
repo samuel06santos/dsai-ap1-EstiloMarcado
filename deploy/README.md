@@ -281,6 +281,13 @@ docker compose --env-file deploy/.env.production -f docker-compose.prod.yml down
   opcao e reconstrua a imagem.
 - **Fontes nao carregam:** a CSP precisa manter `https://fonts.gstatic.com` em
   `font-src` (arquivos `.woff2`) e `https://fonts.googleapis.com` em `style-src`.
+- **"Continuar com Google" falha e o console informa bloqueio de
+  `https://apis.google.com/js/api.js`:** atualize o vhost nginx do host com a
+  versao deste repositorio. O Firebase Auth precisa carregar esse script,
+  acessar as APIs de identidade e abrir o iframe de
+  `estilomarcado.firebaseapp.com`. Depois de copiar o vhost, execute
+  `sudo nginx -t && sudo systemctl reload nginx` e confira o header CSP em
+  `curl -sI https://estilomarcado.samuelsantos.qzz.io/entrar`.
 - **Headers duplicados (`X-Frame-Options`, `X-Content-Type-Options`):** normais;
   o Spring Security adiciona os mesmos headers nas respostas da API.
 

@@ -59,7 +59,7 @@ export class HomeComponent { readonly auth = inject(AuthService); }
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, UiIconComponent],
   template: `
     <section class="auth-card">
       <p class="eyebrow">Acesse sua agenda</p><h1>Entrar</h1>
@@ -69,13 +69,16 @@ export class HomeComponent { readonly auth = inject(AuthService); }
         @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
         <button class="button primary" [disabled]="form.invalid || enviando()">{{ enviando() ? 'Entrando…' : 'Entrar' }}</button>
       </form>
-      @if (firebaseAtivo()) {
-        <p class="field-help">Ou entre com sua conta Google.</p>
-        <button class="button ghost" type="button" [disabled]="enviando()" (click)="entrarGoogle()">
-          {{ enviando() ? 'Aguarde…' : 'Continuar com Google' }}
-        </button>
-      }
       <div class="auth-links"><a routerLink="/recuperar-conta">Esqueci minha senha</a><a routerLink="/cadastro">Criar conta</a></div>
+      @if (firebaseAtivo()) {
+        <div style="margin: 2rem 0; border-top: 1px solid #ccc; text-align: center; display: block;"><span style="top: -0.8em; position: relative; background-color: #fff; padding: 0 0.3em;">ou</span></div>
+        <div style="display: grid; gap: 0.5rem; margin-top: 1rem; text-align: center;">
+          <button class="button ghost" type="button" [disabled]="enviando()" (click)="entrarGoogle()">
+            <span><app-icon name="google" /></span>
+            {{ enviando() ? 'Aguarde…' : 'Continuar com Google' }}
+          </button>
+        </div>
+      }
     </section>
   `
 })

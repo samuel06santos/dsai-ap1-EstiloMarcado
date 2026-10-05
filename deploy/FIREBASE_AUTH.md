@@ -50,6 +50,10 @@ backend. O frontend recebe do backend apenas a configuração pública do SDK.
 SMTP continua necessário para convites, verificação, recuperação e avisos;
 Mailpit atende ao desenvolvimento, e produção exige SMTP real. Defina
 `MAIL_FROM` com um remetente aceito pelo provedor SMTP do seu domínio.
+O login Google também depende da CSP do nginx do host em
+`deploy/nginx/sites-available/estilomarcado.samuelsantos.qzz.io.conf`. Ao
+atualizar essa configuração em produção, valide com `sudo nginx -t` e recarregue
+o serviço nginx; reconstruir apenas o contêiner frontend não altera esse header.
 
 ## 3. Importar contas existentes e fazer o corte
 
