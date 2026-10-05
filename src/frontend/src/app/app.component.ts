@@ -58,7 +58,7 @@ interface NavItem {
             </div>
           }
         </div>
-      } @else if (auth.sessao() === null) {
+      } @else {
         <nav class="public-nav" aria-label="Acesso">
           <a routerLink="/entrar">Entrar</a><a class="nav-cta" routerLink="/cadastro">Criar conta</a>
         </nav>
@@ -91,7 +91,30 @@ interface NavItem {
       </div>
     } @else {
       <main class="public-main"><router-outlet /></main>
-      <footer>Estilo Marcado · beleza com o seu tempo</footer>
+      <footer class="public-footer">
+        <div class="public-footer-inner">
+          <div class="public-footer-intro">
+            <strong>Estilo <em>Marcado</em></strong>
+            <p>Seu horário de beleza, no seu tempo.</p>
+          </div>
+          <nav aria-label="Links do rodapé: explorar">
+            <h2>Explorar</h2>
+            <a routerLink="/filiais">Encontrar filiais</a>
+            <a routerLink="/" fragment="como-funciona">Como funciona</a>
+          </nav>
+          <nav aria-label="Links do rodapé: conta">
+            <h2>Conta</h2>
+            <a routerLink="/entrar">Entrar</a>
+            <a routerLink="/cadastro">Criar conta</a>
+            <a routerLink="/recuperar-conta">Recuperar acesso</a>
+          </nav>
+        </div>
+        <div class="public-footer-bottom">
+          <span>Estilo Marcado</span>
+          <a href="https://github.com/samuel06santos/dsai-ap1-EstiloMarcado"
+            target="_blank" rel="noopener noreferrer" aria-label="Created by Samuel e Renan, abre o repositório no GitHub em nova aba">Created by Samuel e Renan</a>
+        </div>
+      </footer>
     }
   `
 })
@@ -112,7 +135,7 @@ export class AppComponent implements OnInit {
   readonly adminPrincipal = signal(false);
   readonly filialSelecionada = signal<number | null>(null);
   readonly paginaPublica = computed(() =>
-    /^\/(entrar|cadastro|ativar|acao-email|recuperar-conta|redefinir-senha|convite|unidades\/)/
+    /^\/(filiais(?:\/|$)|entrar|cadastro|ativar|acao-email|recuperar-conta|redefinir-senha|convite|unidades\/)/
       .test(this.urlAtual()));
   readonly itens = computed<NavItem[]>(() => {
     const sessao = this.auth.sessao();

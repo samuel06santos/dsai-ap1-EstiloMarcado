@@ -4,8 +4,9 @@ import { provideRouter, Routes, withInMemoryScrolling } from '@angular/router';
 import { AppComponent } from './app/app.component';
 import { administradorGuard, autenticadoGuard, equipeGuard, internoGuard, profissionalGuard } from './app/auth.guard';
 import { credentialsInterceptor } from './app/auth.service';
-import { AtivacaoComponent, CadastroComponent, ContaComponent, FirebaseEmailActionComponent, HomeComponent, LoginComponent,
+import { AtivacaoComponent, CadastroComponent, ContaComponent, FirebaseEmailActionComponent, LoginComponent,
   NovaSenhaComponent, RecuperacaoComponent, UsuariosAdminComponent } from './app/auth-pages';
+import { HomeComponent } from './app/public-home.component';
 import { EstabelecimentoAdminComponent, FilialPublicaComponent } from './app/estabelecimento-pages';
 import { AgendaProfissionalComponent, MinhaFilialComponent } from './app/workspace-pages';
 import { AdministracaoAgendaComponent, MinhaDisponibilidadeComponent } from './app/disponibilidade-pages';

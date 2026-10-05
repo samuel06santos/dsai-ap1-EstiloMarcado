@@ -96,8 +96,19 @@ app-icon { display: inline-flex; align-items: center; flex: 0 0 auto; }
 .sidebar-dot { display: inline-block; width: 7px; height: 7px; margin-right: .45rem; background: var(--wine); border-radius: 50%; }
 .sidebar-scrim { display: none; }
 .app-main { min-width: 0; padding: clamp(1.5rem, 3.4vw, 3.5rem); background: radial-gradient(circle at 100% 0, #f5e6e3, transparent 27%), var(--cream); }
-.public-main { min-height: calc(100vh - 135px); padding: clamp(2rem, 5vw, 5rem) clamp(1rem, 5vw, 5rem); background: radial-gradient(circle at 95% 0, #f5e6e3, transparent 29%), var(--cream); }
-footer { text-align: center; padding: 1.5rem; color: var(--muted); font-size: .8rem; }
+.public-main { min-height: calc(100vh - 76px); padding: clamp(2rem, 5vw, 5rem) clamp(1rem, 5vw, 5rem); background: radial-gradient(circle at 95% 0, #f5e6e3, transparent 29%), var(--cream); }
+.public-footer { padding: clamp(2rem, 4vw, 3.5rem) clamp(1rem, 5vw, 5rem) 1.3rem; background: #3d1d28; color: #f8efec; }
+.public-footer-inner, .public-footer-bottom { width: min(100%, 1240px); margin: 0 auto; }
+.public-footer-inner { display: grid; grid-template-columns: minmax(180px, 1.6fr) repeat(3, minmax(120px, 1fr)); gap: clamp(1.5rem, 3vw, 3rem); }
+.public-footer-intro strong { font: 700 1.5rem 'Playfair Display', serif; }
+.public-footer-intro em { color: #f0b8bf; }
+.public-footer-intro p { max-width: 13rem; margin: .65rem 0 0; color: #e3cece; font-size: .9rem; line-height: 1.5; }
+.public-footer nav { display: grid; align-content: start; justify-items: start; gap: .68rem; }
+.public-footer h2 { margin: 0 0 .3rem; color: white; font: 700 .88rem 'DM Sans', sans-serif; }
+.public-footer a { color: #e3cece; font-size: .88rem; line-height: 1.4; }
+.public-footer a:hover { color: white; text-decoration: underline; }
+.public-footer a:focus-visible { outline-color: #f0b8bf; }
+.public-footer-bottom { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-top: 2.8rem; padding-top: 1.2rem; border-top: 1px solid rgb(255 255 255 / 20%); color: #e3cece; font-size: .82rem; }
 
 h1 { font: 700 clamp(2.2rem, 4.4vw, 4.3rem)/1.08 'Playfair Display', serif; letter-spacing: -.03em; margin: .3rem 0 1rem; }
 h2 { font-size: 1.4rem; line-height: 1.25; }
@@ -130,7 +141,6 @@ h3 { font-size: 1.05rem; }
 .branch-details dt { color: var(--muted); font-size: .77rem; font-weight: 700; }
 .branch-details dd { margin: 0; line-height: 1.45; }
 
-.hero { max-width: 1140px; margin: min(6vh, 3rem) auto; display: grid; grid-template-columns: 1.15fr .85fr; gap: 4rem; align-items: center; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin-top: 2rem; }
 .button { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: 44px;
   border: 1px solid var(--wine); border-radius: .78rem; padding: .76rem 1.2rem; font-weight: 700;
@@ -145,14 +155,6 @@ h3 { font-size: 1.05rem; }
   display: grid; place-items: center; padding: 0 .2rem; border-radius: 999px; background: var(--wine);
   color: white; font-size: .68rem; font-weight: 800; }
 .button.small { padding: .56rem .78rem; font-size: .8rem; min-height: 38px; }
-.hero-card { min-height: 330px; display: flex; flex-direction: column; justify-content: center; overflow: hidden;
-  padding: 2.5rem; border-radius: 1.7rem; background: linear-gradient(135deg, #4b1d2b, #7e3e50);
-  color: white; box-shadow: 0 27px 60px rgb(75 29 43 / 22%); position: relative; }
-.hero-card::before, .hero-card::after { content: ''; position: absolute; width: 230px; height: 230px; border: 1px solid rgb(255 255 255 / 18%); border-radius: 50%; right: -45px; top: -80px; }
-.hero-card::after { width: 300px; height: 300px; right: -85px; top: -110px; }
-.hero-ornament { font: 700 2rem 'Playfair Display', serif; opacity: .65; }
-.hero-card strong { display: block; max-width: 270px; margin: 2.2rem 0 .5rem; font: 700 2rem/1.2 'Playfair Display', serif; position: relative; }
-.hero-card small { opacity: .8; }
 .dashboard-welcome { max-width: 1150px; margin: 0 auto; min-height: 340px; display: grid; grid-template-columns: 1.2fr .8fr; gap: 2rem; align-items: center; }
 .welcome-art { height: 300px; background: linear-gradient(145deg, var(--blush), #f7e9e6); border-radius: 2rem; display: grid; place-items: center; position: relative; overflow: hidden; }
 .welcome-art span { font: 700 clamp(5rem, 11vw, 9rem) 'Playfair Display', serif; color: rgb(103 45 62 / 32%); z-index: 1; }
@@ -252,13 +254,15 @@ textarea { min-height: 6rem; resize: vertical; }
   .app-sidebar.is-open { transform: translateX(0); visibility: visible; }
   .sidebar-scrim { display: block; position: fixed; inset: 76px 0 0; z-index: 30; border: 0; background: rgb(45 38 39 / 38%); width: 100%; }
   .app-main { padding: 1.5rem 1rem 3rem; }
-  .hero, .dashboard-welcome { grid-template-columns: 1fr; gap: 2rem; margin-top: 0; }
-  .hero-card, .welcome-art { min-height: 220px; height: 240px; }
+  .dashboard-welcome { grid-template-columns: 1fr; gap: 2rem; margin-top: 0; }
+  .welcome-art { min-height: 220px; height: 240px; }
+  .public-footer-inner { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .profile-grid, .overview-grid { grid-template-columns: 1fr; }
   .profile-identity { display: grid; justify-items: center; }
   .form-grid, .affiliation-grid, .inline-form { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
+  .public-footer-inner { grid-template-columns: 1fr; }
   .account-name { display: none; }
   .avatar-trigger { gap: .15rem; }
   .public-nav { gap: .55rem; font-size: .82rem; }
@@ -269,6 +273,13 @@ textarea { min-height: 6rem; resize: vertical; }
   .agenda-time { grid-column: 1 / -1; }
   .agenda-toolbar h2 { font-size: 1.25rem; }
   .toolbar-actions { width: 100%; justify-content: space-between; }
+}
+@media (max-width: 360px) {
+  .app-header { padding-inline: .75rem; }
+  .brand { font-size: 1.08rem; }
+  .public-nav { gap: .4rem; font-size: .76rem; }
+  .public-nav a { white-space: nowrap; }
+  .public-nav .nav-cta { padding: .55rem .6rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }

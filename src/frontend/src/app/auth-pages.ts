@@ -7,55 +7,7 @@ import { finalize } from 'rxjs';
 import { AuthService, ErroApi, MeuPerfil, MetodosLogin, Perfil, Usuario } from './auth.service';
 import { UiIconComponent } from './ui-icon.component';
 import { EstabelecimentoService, Profissional } from './estabelecimento.service';
-import { PainelClienteComponent } from './painel-cliente-pages';
 
-@Component({
-  standalone: true,
-  imports: [RouterLink, UiIconComponent, PainelClienteComponent],
-  template: `
-    @if (auth.sessao() === undefined) {
-      <div class="loading-state" role="status">Carregando seu espaço…</div>
-    } @else if (auth.sessao(); as sessao) {
-      @if (sessao.perfil === 'CLIENTE') {
-        <app-painel-cliente />
-      } @else {
-      <section class="dashboard-welcome">
-        <div class="welcome-copy">
-          <p class="eyebrow">Seu espaço</p>
-          <h1>Olá, {{ sessao.nome }}.</h1>
-          <p class="lead">Tudo o que você precisa para cuidar do seu tempo, em um só lugar.</p>
-          <div class="actions">
-            @switch (sessao.perfil) {
-              @case ('PROFISSIONAL') { <a class="button primary" routerLink="/profissional/agenda"><app-icon name="calendar" /> Ver minha agenda</a> }
-              @case ('ADMINISTRADOR') { <a class="button primary" routerLink="/administracao/estabelecimento"><app-icon name="building" /> Ver meu painel</a> }
-              @case ('RECEPCAO') { <a class="button primary" routerLink="/equipe/agendamentos"><app-icon name="calendar" /> Ver agenda da filial</a> }
-              @default { <a class="button primary" routerLink="/conta"><app-icon name="user" /> Meu perfil</a> }
-            }
-          </div>
-        </div>
-        <div class="welcome-art" aria-hidden="true"><span>EM</span><i></i><i></i></div>
-      </section>
-      }
-    } @else {
-      <section class="hero">
-        <div>
-          <p class="eyebrow">Seu tempo, bem cuidado</p>
-          <h1>Beleza com o seu tempo.</h1>
-          <p class="lead">Conheça sua filial, seus profissionais e os serviços disponíveis em uma experiência mais leve.</p>
-          <div class="actions">
-            <a class="button primary" routerLink="/cadastro"><app-icon name="sparkles" /> Criar minha conta</a>
-            <a class="button ghost" routerLink="/entrar">Já tenho uma conta</a>
-          </div>
-        </div>
-        <div class="hero-card" aria-hidden="true">
-          <span class="hero-ornament">EM</span><strong>Seu momento merece cuidado.</strong>
-          <small>Estilo Marcado</small>
-        </div>
-      </section>
-    }
-  `
-})
-export class HomeComponent { readonly auth = inject(AuthService); }
 
 @Component({
   standalone: true,
