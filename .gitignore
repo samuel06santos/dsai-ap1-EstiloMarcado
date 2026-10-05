@@ -96,3 +96,6 @@ temp/
 # Rascunhos de especificações (nunca versionar)
 /SPEC/temp/
 /deploy/firebase/
+
+.opencode/
+.agents/
