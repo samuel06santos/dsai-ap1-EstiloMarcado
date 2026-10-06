@@ -4,6 +4,8 @@ import { forkJoin } from 'rxjs';
 import { AgendaItem, AgendaProfissionalApi } from './agenda-profissional.service';
 import { AuthService, MeuPerfil } from './auth.service';
 import { CalendarioAgendaComponent, VisaoAgenda } from './calendario-agenda.component';
+import { EstadoListaComponent } from './estado-lista.component';
+import { classificarLista, orientacaoVazia } from './estados-interface';
 import { EstabelecimentoService, Filial } from './estabelecimento.service';
 import { UiIconComponent } from './ui-icon.component';
 
@@ -60,12 +62,11 @@ export class MinhaFilialComponent implements OnInit {
 
 @Component({
   standalone: true,
-  imports: [UiIconComponent, CalendarioAgendaComponent],
+  imports: [UiIconComponent, CalendarioAgendaComponent, EstadoListaComponent, RouterLink],
   template: `
     <section class="page-stack">
       <div class="page-heading"><p class="eyebrow">Área profissional</p><h1>Minha agenda</h1>
         <p>Visões diária, semanal e mensal dos seus atendimentos. Clique em um dia para ver os detalhes.</p></div>
-      @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
       <app-calendario-agenda
         [itens]="itens()" [visao]="visao()" [diaSelecionado]="dia()" [carregando]="carregando()"
         (visaoChange)="trocarVisao($event)"
@@ -75,11 +76,22 @@ export class MinhaFilialComponent implements OnInit {
       <article class="surface-panel section-card">
         <div class="section-title"><div><p class="eyebrow">Dia selecionado</p>
           <h2>{{ rotuloDia() }}</h2></div><app-icon name="calendar" /></div>
-        @if (carregando()) { <p class="muted-copy" role="status">Carregando agenda…</p> }
-        @else if (!itensDoDia().length) {
-          <div class="empty-state"><span class="panel-icon"><app-icon name="calendar" /></span>
-            <h3>Nenhum atendimento neste dia</h3><p>Escolha outra data no calendário.</p></div>
-        } @else {
+        @switch (estadoDia()) {
+          @case ('carregando') { <app-estado-lista [estado]="'carregando'" [titulo]="'Carregando agenda…'" /> }
+          @case ('erro') {
+            <app-estado-lista [estado]="'erro'" [titulo]="'Não foi possível carregar a agenda'"
+              [descricao]="erro()" [icone]="'calendar'">
+              <button class="button primary" type="button" (click)="recarregar()">Tentar novamente</button>
+            </app-estado-lista>
+          }
+          @case ('sem-dados') {
+            <app-estado-lista [estado]="'sem-dados'" [titulo]="vazio().titulo"
+              [descricao]="vazio().descricao" [icone]="'calendar'">
+              <button class="button ghost" type="button" (click)="mudarDeDia()">Mudar de dia</button>
+              <a class="button primary" routerLink="/profissional/disponibilidade">Minha disponibilidade</a>
+            </app-estado-lista>
+          }
+          @default {
           <div class="agenda-list">
             @for (item of itensDoDia(); track item.id) {
               <article class="agenda-item" [class.is-cancelled]="item.status === 'CANCELADO'">
@@ -90,6 +102,7 @@ export class MinhaFilialComponent implements OnInit {
               </article>
             }
           </div>
+          }
         }
         <p class="muted-copy">Horários no fuso da filial: {{ fuso() }}.</p>
         @if (itemSelecionado(); as item) {
@@ -118,6 +131,7 @@ export class AgendaProfissionalComponent implements OnInit {
   readonly erro = signal('');
   readonly fuso = signal('America/Sao_Paulo');
   readonly itemSelecionado = signal<AgendaItem | null>(null);
+  private ultimoIntervalo: { de: string; ate: string } | null = null;
 
   ngOnInit(): void {
     const params = this.route.snapshot.queryParamMap;
@@ -135,6 +149,7 @@ export class AgendaProfissionalComponent implements OnInit {
   }
 
   carregar(de: string, ate: string): void {
+    this.ultimoIntervalo = { de, ate };
     this.carregando.set(true);
     this.erro.set('');
     this.api.agendaDoIntervalo(de, ate).subscribe({
@@ -142,6 +157,22 @@ export class AgendaProfissionalComponent implements OnInit {
       error: error => { this.itens.set([]); this.erro.set(AuthService.mensagemErro(error));
         this.carregando.set(false); }
     });
+  }
+
+  recarregar(): void {
+    if (this.ultimoIntervalo) { this.carregar(this.ultimoIntervalo.de, this.ultimoIntervalo.ate); }
+  }
+
+  vazio() { return orientacaoVazia('profissional-sem-agenda'); }
+
+  estadoDia() {
+    return classificarLista({ carregando: this.carregando(), erro: !!this.erro(),
+      total: this.itensDoDia().length, filtrosAtivos: 0 });
+  }
+
+  mudarDeDia(): void {
+    const calendario = typeof document === 'undefined' ? null : document.querySelector('app-calendario-agenda');
+    calendario?.scrollIntoView({ block: 'start' });
   }
 
   trocarVisao(visao: VisaoAgenda): void { this.visao.set(visao); this.atualizarUrl(); }

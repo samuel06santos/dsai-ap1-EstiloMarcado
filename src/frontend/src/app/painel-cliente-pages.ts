@@ -4,6 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Agendamento, AgendamentoApi, PainelCliente } from './agendamento.service';
 import { AuthService } from './auth.service';
+import { EstadoListaComponent } from './estado-lista.component';
+import { orientacaoVazia } from './estados-interface';
 import { HorarioDisponivel } from './estabelecimento.service';
 import { UiIconComponent } from './ui-icon.component';
 
@@ -17,7 +19,7 @@ function diaNoFuso(fuso: string): string {
 @Component({
   selector: 'app-painel-cliente',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, UiIconComponent],
+  imports: [CommonModule, FormsModule, RouterLink, UiIconComponent, EstadoListaComponent],
   template: `
     <section class="page-stack">
       <div class="page-heading"><p class="eyebrow">Área do cliente</p>
@@ -47,6 +49,7 @@ function diaNoFuso(fuso: string): string {
             </div>
             <span class="status-chip">{{ nomeStatus(proximo.status) }}</span>
             <div class="form-actions">
+              <a class="button ghost" [routerLink]="['/agendamentos', proximo.id, 'historico']">Ver</a>
               <button class="button ghost" type="button" [disabled]="enviando()"
                 (click)="iniciarReagendamento(proximo)">Reagendar</button>
               <button class="button ghost" type="button" [disabled]="enviando()"
@@ -58,16 +61,14 @@ function diaNoFuso(fuso: string): string {
             </div>
           </article>
         } @else {
-          <article class="surface-panel section-card">
-            <span class="panel-icon"><app-icon name="calendar" /></span>
-            <h2>Nenhum horário agendado</h2>
-            <p class="muted-copy">Quando você marcar um atendimento, ele aparece aqui.</p>
+          <app-estado-lista [estado]="'sem-dados'" [titulo]="vazio().titulo"
+            [descricao]="vazio().descricao" [icone]="'calendar'">
             @if (filialRecente(); as filialId) {
-              <a class="button primary" [routerLink]="['/unidades', filialId]">Agendar agora</a>
+              <a class="button primary" [routerLink]="['/unidades', filialId]">Encontrar horário</a>
             } @else {
-              <p class="muted-copy">Abra a página de uma filial para escolher um serviço e um horário.</p>
+              <a class="button primary" routerLink="/filiais">Encontrar filial</a>
             }
-          </article>
+          </app-estado-lista>
         }
 
         @if (restantesProximos().length) {
@@ -152,6 +153,8 @@ export class PainelClienteComponent implements OnInit {
   readonly alternativas = signal<HorarioDisponivel[]>([]);
   readonly reagendando = signal<Agendamento | null>(null);
   readonly filialRecente = signal<number | null>(null);
+
+  vazio() { return orientacaoVazia('cliente-sem-agendamento'); }
 
   dataReagendamento = diaNoFuso('America/Sao_Paulo');
 

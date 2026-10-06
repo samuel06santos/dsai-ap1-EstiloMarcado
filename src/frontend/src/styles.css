@@ -239,6 +239,12 @@ textarea { min-height: 6rem; resize: vertical; }
 .empty-state { display: grid; justify-items: center; padding: 3rem 1rem; text-align: center; }
 .empty-state h3 { margin: .3rem 0; }
 .empty-state p { margin: 0; color: var(--muted); }
+.empty-state .form-actions { justify-content: center; margin-top: 1.2rem; }
+.empty-state.is-erro .panel-icon { color: #8f2435; background: #fff0f2; }
+.filtros-resumo { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: 1rem; }
+.filtros-resumo .eyebrow { margin: 0 .2rem 0 0; }
+.filtro-chip { display: inline-flex; align-items: center; border-radius: 999px; background: var(--soft);
+  color: var(--wine-dark); font-size: .78rem; font-weight: 700; padding: .38rem .72rem; }
 
 @media (max-width: 1000px) {
   .app-layout { grid-template-columns: 220px minmax(0, 1fr); }

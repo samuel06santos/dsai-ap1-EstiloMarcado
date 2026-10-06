@@ -3,6 +3,8 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from './auth.service';
+import { EstadoListaComponent } from './estado-lista.component';
+import { orientacaoVazia } from './estados-interface';
 import { Estabelecimento, EstabelecimentoService, Filial, FilialDados,
   Profissional, ServicoDados, ServicoPublico } from './estabelecimento.service';
 import { UiIconComponent } from './ui-icon.component';
@@ -26,7 +28,7 @@ const FUSOS_HORARIOS: OpcaoFuso[] = [
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, UiIconComponent],
+  imports: [CommonModule, FormsModule, RouterLink, UiIconComponent, EstadoListaComponent],
   template: `
     <section class="page-stack">
       <div class="page-heading"><p class="eyebrow">Administração</p><h1>Seu espaço de gestão</h1>
@@ -109,13 +111,20 @@ const FUSOS_HORARIOS: OpcaoFuso[] = [
         <section id="profissionais" class="surface-panel section-card">
         <div class="section-title"><div><p class="eyebrow">Equipe de atendimento</p><h2>Profissionais</h2></div><app-icon name="users" /></div>
         <p class="muted-copy">Gerencie quem atende na sua filial.</p>
-        <details class="create-details"><summary><app-icon name="user" /> Adicionar profissional</summary>
+        <details id="novo-profissional" class="create-details"><summary><app-icon name="user" /> Adicionar profissional</summary>
         <form (ngSubmit)="criarProfissional()" #formProfissional="ngForm">
           <label>Nome<input name="profNome" [(ngModel)]="profNome" required minlength="2" maxlength="120"></label>
           <label>Apresentação<textarea name="profApresentacao" [(ngModel)]="profApresentacao" maxlength="500"></textarea></label>
           <button class="button primary" [disabled]="formProfissional.invalid || salvando()">Adicionar profissional</button>
         </form>
         </details>
+        @if (!profissionais().length) {
+          <app-estado-lista [estado]="'sem-dados'" [titulo]="vazioProfissionais().titulo"
+            [descricao]="vazioProfissionais().descricao" [icone]="'users'">
+            <button class="button primary" type="button"
+              (click)="focarCadastro('novo-profissional')">Adicionar profissional</button>
+          </app-estado-lista>
+        }
         <div class="user-list">
           @for (profissional of profissionais(); track profissional.id) {
             <article>
@@ -160,8 +169,14 @@ const FUSOS_HORARIOS: OpcaoFuso[] = [
                 </article>
               }
             </div>
-          } @else { <p class="muted-copy" role="status">Nenhum serviço cadastrado. Cadastre o primeiro abaixo.</p> }
-          <form class="edit-panel" (ngSubmit)="salvarServico()" #formServico="ngForm">
+          } @else {
+            <app-estado-lista [estado]="'sem-dados'" [titulo]="vazioServicos().titulo"
+              [descricao]="vazioServicos().descricao" [icone]="'scissors'">
+              <button class="button primary" type="button"
+                (click)="focarCadastro('novo-servico')">Adicionar serviço</button>
+            </app-estado-lista>
+          }
+          <form id="novo-servico" class="edit-panel" (ngSubmit)="salvarServico()" #formServico="ngForm">
             <h3>{{ servicoEmEdicao() ? 'Editar serviço' : 'Adicionar serviço' }}</h3>
             <div class="form-grid">
               <label>Nome<input name="servicoNome" [(ngModel)]="servicoDados.nome" required minlength="2" maxlength="120"></label>
@@ -203,6 +218,15 @@ export class EstabelecimentoAdminComponent implements OnInit {
   servicoDados: ServicoDados = this.dadosServicoVazios();
 
   ngOnInit(): void { this.carregar(); }
+
+  vazioProfissionais() { return orientacaoVazia('admin-sem-profissional'); }
+  vazioServicos() { return orientacaoVazia('admin-sem-servico'); }
+  focarCadastro(id: string): void {
+    const alvo = typeof document === 'undefined' ? null : document.getElementById(id);
+    if (alvo instanceof HTMLDetailsElement) { alvo.open = true; }
+    alvo?.scrollIntoView({ block: 'start' });
+    (alvo?.querySelector('input') as HTMLElement | null)?.focus();
+  }
 
   fusosPara(valor: string): OpcaoFuso[] {
     if (valor && !FUSOS_HORARIOS.some(opcao => opcao.valor === valor)) {

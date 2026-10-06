@@ -1,10 +1,13 @@
 import { HttpClient } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Observable, switchMap } from 'rxjs';
 import { AuthService } from './auth.service';
 import { formatarData as dataLocal, formatarDataHora as dataHoraLocal } from './data-apresentacao';
+import { EstadoListaComponent } from './estado-lista.component';
+import { FiltroAtivo, classificarLista, orientacaoVazia, parametrosFiltrosUrl }
+  from './estados-interface';
 import { EstabelecimentoService, HorarioDisponivel, Profissional, ServicoPublico } from './estabelecimento.service';
 
 interface Solicitacao { id: number; unidadeId: number; servicoId: number; profissionalId: number | null;
@@ -42,6 +45,10 @@ function instanteLocal(valor: string, fusoHorario?: string): string {
 }
 
 function horaCurta(valor: string): string { return valor.slice(0, 5); }
+
+const ROTULOS_STATUS_FILA: Record<string, string> = {
+  ATIVA: 'Ativa', ATENDIDA: 'Atendida', CANCELADA: 'Cancelada', EXPIRADA: 'Expirada'
+};
 
 export class OperacaoApi {
   private readonly http = inject(HttpClient);
@@ -98,7 +105,8 @@ export class OperacaoApi {
 }
 
 @Component({
-  selector: 'app-lista-espera', standalone: true, imports: [FormsModule],
+  selector: 'app-lista-espera', standalone: true,
+  imports: [FormsModule, RouterLink, EstadoListaComponent],
   providers: [OperacaoApi], changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page-stack">
@@ -133,7 +141,12 @@ export class OperacaoApi {
       @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
       <section class="surface-panel"><h2>Minhas solicitações</h2>
         <p class="muted-copy">Acompanhe suas solicitações, veja ofertas de vaga e cancele quando quiser.</p>
-        @if (solicitacoes().length === 0) { <p class="muted-copy">Você ainda não entrou em nenhuma lista.</p> }
+        @if (!solicitacoes().length) {
+          <app-estado-lista [estado]="'sem-dados'" [titulo]="vazio().titulo"
+            [descricao]="vazio().descricao" [icone]="'clock'">
+            <a class="button primary" routerLink="/filiais">Escolher filial e serviço</a>
+          </app-estado-lista>
+        }
         <div class="user-list">
           @for (s of solicitacoes(); track s.id) {
             <article><div><strong>Serviço {{ s.servicoId }} · filial {{ s.unidadeId }}</strong>
@@ -164,6 +177,7 @@ export class ListaEsperaComponent {
   readonly dataLocal = dataLocal;
   readonly dataHoraLocal = dataHoraLocal;
   readonly instanteLocal = instanteLocal;
+  readonly vazio = () => orientacaoVazia('lista-espera-cliente');
   private readonly api = inject(OperacaoApi);
   private readonly catalogo = inject(EstabelecimentoService);
   private readonly rota = inject(ActivatedRoute);
@@ -264,41 +278,53 @@ export class ListaEsperaComponent {
 }
 
 @Component({
-  selector: 'app-notificacoes', standalone: true, imports: [FormsModule], providers: [OperacaoApi],
+  selector: 'app-notificacoes', standalone: true, imports: [FormsModule, EstadoListaComponent],
+  providers: [OperacaoApi],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<div class="page-stack"><header class="page-heading"><p class="eyebrow">Atualizações</p>
     <h1>Notificações</h1><p>Veja novidades sobre seus agendamentos e ofertas.</p></header>
-    <section class="surface-panel"><h2>Preferências</h2>
+    <section id="preferencias" class="surface-panel section-card"><h2>Preferências</h2>
       <p class="muted-copy">Escolha quais avisos deseja receber por e-mail.</p>
       <form (ngSubmit)="salvarPreferencias()">
         <label class="checkbox-line"><input type="checkbox" name="lembretes" [(ngModel)]="lembretes">
           Receber lembretes de agendamento</label>
         <label class="checkbox-line"><input type="checkbox" name="avisosLista" [(ngModel)]="avisosLista">
           Receber avisos da lista de espera</label>
-        <button class="button ghost" type="submit">Salvar preferências</button>
+        <button class="button ghost" type="submit" [disabled]="ocupado()">
+          {{ ocupado() ? 'Salvando…' : 'Salvar preferências' }}</button>
       </form>
     </section>
     <section class="surface-panel"><h2>Suas notificações</h2>
       <p class="muted-copy">Novidades sobre seus agendamentos e ofertas de vaga.</p>
-      <div class="user-list">
-      @for (item of itens(); track item.id) {
-        <article><div><strong>{{ item.tipo }}</strong><small>{{ instanteLocal(item.criadoEm) }} ·
-          {{ item.lidoEm ? 'Lida' : 'Não lida' }}</small></div>
-          @if (!item.lidoEm) { <button class="button ghost small" type="button"
-            (click)="ler(item.id)">Marcar como lida</button> }
-        </article>
-      } @empty { <p class="muted-copy">Nenhuma notificação por enquanto.</p> }
-    </div></section>
+      @if (itens().length) {
+        <div class="user-list">
+        @for (item of itens(); track item.id) {
+          <article><div><strong>{{ item.tipo }}</strong><small>{{ instanteLocal(item.criadoEm) }} ·
+            {{ item.lidoEm ? 'Lida' : 'Não lida' }}</small></div>
+            @if (!item.lidoEm) { <button class="button ghost small" type="button" [disabled]="ocupado()"
+              (click)="ler(item.id)">Marcar como lida</button> }
+          </article>
+        }
+        </div>
+      } @else if (!erro()) {
+        <app-estado-lista [estado]="'sem-dados'" [titulo]="vazio().titulo"
+          [descricao]="vazio().descricao" [icone]="'mail'">
+          <button class="button ghost" type="button" (click)="irParaPreferencias()">Ajustar preferências</button>
+        </app-estado-lista>
+      }
+    </section>
     @if (mensagem()) { <p class="notice success" role="status">{{ mensagem() }}</p> }
     @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
   </div>`
 })
 export class NotificacoesComponent {
   readonly instanteLocal = instanteLocal;
+  readonly vazio = () => orientacaoVazia('notificacoes');
   private readonly api = inject(OperacaoApi);
   readonly itens = signal<Notificacao[]>([]);
   readonly erro = signal('');
   readonly mensagem = signal('');
+  readonly ocupado = signal(false);
   lembretes = true; avisosLista = true;
   constructor() { this.carregar(); this.api.preferencias().subscribe({
     next: p => { this.lembretes = p.lembretes; this.avisosLista = p.avisosLista; },
@@ -306,12 +332,23 @@ export class NotificacoesComponent {
   }); }
   carregar(): void { this.api.notificacoes().subscribe({ next: itens => this.itens.set(itens),
     error: () => this.erro.set('Não foi possível carregar notificações.') }); }
-  ler(id: number): void { this.api.ler(id).subscribe({ next: () => this.carregar(),
-    error: () => this.erro.set('Não foi possível marcar como lida.') }); }
+  ler(id: number): void {
+    if (this.ocupado()) { return; }
+    this.ocupado.set(true);
+    this.api.ler(id).subscribe({ next: () => { this.ocupado.set(false); this.carregar(); },
+      error: () => { this.ocupado.set(false); this.erro.set('Não foi possível marcar como lida.'); } });
+  }
   salvarPreferencias(): void {
+    if (this.ocupado()) { return; }
+    this.ocupado.set(true);
     this.api.salvarPreferencias({ lembretes: this.lembretes, avisosLista: this.avisosLista })
-      .subscribe({ next: () => this.mensagem.set('Preferências salvas.'),
-        error: () => this.erro.set('Não foi possível salvar preferências.') });
+      .subscribe({ next: () => { this.ocupado.set(false); this.mensagem.set('Preferências salvas.'); },
+        error: () => { this.ocupado.set(false); this.erro.set('Não foi possível salvar preferências.'); } });
+  }
+  irParaPreferencias(): void {
+    const destino = typeof document === 'undefined' ? null : document.getElementById('preferencias');
+    destino?.scrollIntoView({ block: 'start' });
+    (destino?.querySelector('input') as HTMLElement | null)?.focus();
   }
 }
 
@@ -347,33 +384,55 @@ export class HistoricoAgendamentoComponent {
 }
 
 @Component({
-  selector: 'app-fila-equipe', standalone: true, imports: [FormsModule], providers: [OperacaoApi],
+  selector: 'app-fila-equipe', standalone: true, imports: [FormsModule, EstadoListaComponent],
+  providers: [OperacaoApi],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<div class="page-stack"><header class="page-heading"><p class="eyebrow">Operação</p>
     <h1>Fila e encaixes</h1><p>Marque apenas com autorização expressa do cliente.</p></header>
     <section class="surface-panel"><p class="muted-copy">Solicitações de vaga da sua filial. Filtre por estado para
-      acompanhar quem aguarda atendimento.</p><label>Estado da solicitação
-      <select name="status" [(ngModel)]="statusFiltro" (change)="carregar()">
-        <option value="">Todos</option><option value="ATIVA">Ativa</option>
-        <option value="ATENDIDA">Atendida</option><option value="CANCELADA">Cancelada</option>
-        <option value="EXPIRADA">Expirada</option>
-      </select></label><div class="user-list">
-      @for (s of solicitacoes(); track s.id) {
-        <article><div><strong>{{ s.clienteNome }}</strong><small>Serviço {{ s.servicoId }} ·
-          {{ dataLocal(s.dataInicio) }} a {{ dataLocal(s.dataFim) }} · {{ s.status }} · {{ s.telefoneContato || 'Sem telefone' }}</small>
-          <small>Entrada: {{ instanteLocal(s.criadoEm) }}
-            @if (s.horaInicio && s.horaFim) {
-              · horário {{ horaCurta(s.horaInicio) }}–{{ horaCurta(s.horaFim) }}
-            } @else { · horário livre }
-            @if (s.posicaoAproximada) { · posição {{ s.posicaoAproximada }} }
-          </small></div>
-          <button class="button ghost small" type="button" (click)="verOfertas(s)">Ofertas</button>
-          @if (s.status === 'ATIVA') {
-            <button class="button ghost small" type="button" (click)="selecionar(s)">Encaixar</button>
+      acompanhar quem aguarda atendimento.</p>
+      <div class="form-grid"><label>Estado da solicitação
+        <select name="status" [ngModel]="statusFiltro" (ngModelChange)="aplicarFiltroStatus($event)">
+          <option value="">Todos</option><option value="ATIVA">Ativa</option>
+          <option value="ATENDIDA">Atendida</option><option value="CANCELADA">Cancelada</option>
+          <option value="EXPIRADA">Expirada</option>
+        </select></label></div>
+      @if (chipsFiltros().length) {
+        <div class="filtros-resumo">
+          <span class="eyebrow">Filtros ativos</span>
+          @for (chip of chipsFiltros(); track chip.chave) {
+            <span class="filtro-chip">{{ chip.rotulo }}: {{ chip.valor }}</span>
           }
-        </article>
-      } @empty { <p class="muted-copy">Fila vazia.</p> }
-    </div></section>
+          <button class="button ghost small" type="button" (click)="limparFiltros()">Limpar filtros</button>
+        </div>
+      }
+      @if (solicitacoes().length) {
+        <div class="user-list">
+          @for (s of solicitacoes(); track s.id) {
+            <article><div><strong>{{ s.clienteNome }}</strong><small>Serviço {{ s.servicoId }} ·
+              {{ dataLocal(s.dataInicio) }} a {{ dataLocal(s.dataFim) }} · {{ s.status }} · {{ s.telefoneContato || 'Sem telefone' }}</small>
+              <small>Entrada: {{ instanteLocal(s.criadoEm) }}
+                @if (s.horaInicio && s.horaFim) {
+                  · horário {{ horaCurta(s.horaInicio) }}–{{ horaCurta(s.horaFim) }}
+                } @else { · horário livre }
+                @if (s.posicaoAproximada) { · posição {{ s.posicaoAproximada }} }
+              </small></div>
+              <button class="button ghost small" type="button" (click)="verOfertas(s)">Ofertas</button>
+              @if (s.status === 'ATIVA') {
+                <button class="button ghost small" type="button" (click)="selecionar(s)">Encaixar</button>
+              }
+            </article>
+          }
+        </div>
+      } @else if (!erro()) {
+        <app-estado-lista [estado]="estadoFila()" [titulo]="tituloFila()"
+          [descricao]="vazio().descricao" [icone]="'clock'">
+          @if (filtroAtivo()) {
+            <button class="button ghost" type="button" (click)="limparFiltros()">Ver todos os estados</button>
+          }
+        </app-estado-lista>
+      }
+    </section>
     @if (ofertasDaSelecionada().length) {
       <section class="surface-panel"><h2>Ofertas da solicitação</h2>
         <p class="muted-copy">Horários oferecidos ao cliente; a vaga só é reservada após a aceitação.</p>
@@ -440,6 +499,8 @@ export class FilaEquipeComponent {
   private readonly api = inject(OperacaoApi);
   private readonly auth = inject(AuthService);
   private readonly catalogo = inject(EstabelecimentoService);
+  private readonly rota = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   readonly solicitacoes = signal<Solicitacao[]>([]);
   readonly selecionada = signal<Solicitacao | null>(null);
   readonly ofertasDaSelecionada = signal<Oferta[]>([]);
@@ -455,7 +516,39 @@ export class FilaEquipeComponent {
   profissionalId: number | null = null; dataEncaixe = ''; inicio = '';
   autorizada = false; statusFiltro = 'ATIVA';
   private consultaAtual = 0;
-  constructor() { this.carregar(); }
+  constructor() {
+    const status = this.rota.snapshot.queryParamMap.get('status') ?? 'ATIVA';
+    this.statusFiltro = status === '' || status in ROTULOS_STATUS_FILA ? status : 'ATIVA';
+    this.carregar();
+  }
+  vazio() { return orientacaoVazia('lista-espera-equipe'); }
+  filtroAtivo(): boolean { return this.statusFiltro.trim() !== ''; }
+  chipsFiltros(): FiltroAtivo[] {
+    return this.filtroAtivo()
+      ? [{ chave: 'status', rotulo: 'Estado', valor: ROTULOS_STATUS_FILA[this.statusFiltro] ?? this.statusFiltro }]
+      : [];
+  }
+  estadoFila() {
+    return classificarLista({ carregando: false, erro: false,
+      total: this.solicitacoes().length, filtrosAtivos: this.filtroAtivo() ? 1 : 0 });
+  }
+  tituloFila(): string {
+    return this.filtroAtivo() ? this.vazio().titulo : 'Nenhuma solicitação na fila';
+  }
+  aplicarFiltroStatus(valor: string): void {
+    this.statusFiltro = valor;
+    this.atualizarUrl();
+    this.carregar();
+  }
+  limparFiltros(): void {
+    this.statusFiltro = '';
+    this.atualizarUrl();
+    this.carregar();
+  }
+  private atualizarUrl(): void {
+    void this.router.navigate([], { relativeTo: this.rota, replaceUrl: true,
+      queryParams: parametrosFiltrosUrl({ status: this.statusFiltro }) });
+  }
   carregar(): void { const id = this.auth.sessao()?.unidadeId;
     if (id) { this.api.fila(id, this.statusFiltro).subscribe({ next: dados => this.solicitacoes.set(dados),
       error: () => this.erro.set('Não foi possível carregar a fila.') }); } }

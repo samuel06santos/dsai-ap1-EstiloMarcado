@@ -1,36 +1,71 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, ElementRef, inject, OnInit, signal, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Agendamento, AgendamentoApi } from './agendamento.service';
 import { AuthService } from './auth.service';
+import { formatarData } from './data-apresentacao';
+import { EstadoListaComponent } from './estado-lista.component';
+import { FiltroAtivo, classificarLista, idUrlValido, orientacaoVazia, parametrosFiltrosUrl }
+  from './estados-interface';
 import { EstabelecimentoService, HorarioDisponivel, Profissional, ServicoPublico } from './estabelecimento.service';
 import { UiIconComponent } from './ui-icon.component';
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, UiIconComponent],
+  imports: [CommonModule, FormsModule, RouterLink, UiIconComponent, EstadoListaComponent],
   template: `
     <section class="page-stack">
       <div class="page-heading"><p class="eyebrow">Recepção</p><h1>Agenda da filial</h1>
         <p>Confirme atendimentos e organize novos horários.</p></div>
       @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
       @if (sucesso()) { <p class="notice success" role="status">{{ sucesso() }}</p> }
-      <section class="surface-panel section-card">
+      <section id="atendimentos" class="surface-panel section-card">
         <div class="section-title"><div><p class="eyebrow">Atendimentos</p><h2>Dia selecionado</h2></div>
           <app-icon name="calendar" /></div>
         <p class="muted-copy">Confirme atendimentos e acompanhe a agenda desta filial no dia escolhido.</p>
         <div class="form-grid">
-          <label>Data <input type="date" [(ngModel)]="data" (change)="carregar()"></label>
+          <label>Data <input #filtroData type="date" [ngModel]="data"
+            (ngModelChange)="aplicarData($event)"></label>
           <label>Profissional
-            <select [(ngModel)]="profissionalFiltro" (change)="carregar()">
+            <select [ngModel]="profissionalFiltro" (ngModelChange)="aplicarProfissional($event)">
               <option [ngValue]="null">Todos</option>
               @for (p of profissionais(); track p.id) { <option [ngValue]="p.id">{{ p.nome }}</option> }
             </select>
           </label>
         </div>
-        @if (carregando()) { <p role="status">Carregando agenda…</p> }
-        @else if (!itens().length) { <p class="muted-copy">Sem atendimentos nesta data.</p> }
+        @if (chipsFiltros().length) {
+          <div class="filtros-resumo">
+            <span class="eyebrow">Filtros ativos</span>
+            @for (chip of chipsFiltros(); track chip.chave) {
+              <span class="filtro-chip">{{ chip.rotulo }}: {{ chip.valor }}</span>
+            }
+            <button class="button ghost small" type="button" (click)="limparFiltros()">Limpar filtros</button>
+          </div>
+        }
+        @switch (estadoAgenda()) {
+          @case ('carregando') { <app-estado-lista [estado]="'carregando'" [titulo]="'Carregando agenda…'" /> }
+          @case ('erro') {
+            <app-estado-lista [estado]="'erro'" [titulo]="'Não foi possível carregar a agenda'"
+              [descricao]="erroAgenda()" [icone]="'calendar'">
+              <button class="button primary" type="button" (click)="carregar()">Tentar novamente</button>
+            </app-estado-lista>
+          }
+          @case ('sem-dados') {
+            <app-estado-lista [estado]="'sem-dados'" [titulo]="vazio().titulo"
+              [descricao]="vazio().descricao" [icone]="'calendar'">
+              <button class="button primary" type="button" (click)="agendarAtendimento()">Agendar atendimento</button>
+              <button class="button ghost" type="button" (click)="focarPeriodo()">Alterar período</button>
+            </app-estado-lista>
+          }
+          @case ('sem-resultado') {
+            <app-estado-lista [estado]="'sem-resultado'" [titulo]="'Nenhum atendimento com este profissional'"
+              [descricao]="'Ajuste o filtro ou o dia para ver outros atendimentos.'" [icone]="'calendar'">
+              <button class="button primary" type="button" (click)="limparFiltros()">Limpar filtros</button>
+              <button class="button ghost" type="button" (click)="agendarAtendimento()">Agendar atendimento</button>
+            </app-estado-lista>
+          }
+        }
         <div class="user-list">
           @for (item of itens(); track item.id) {
             <article>
@@ -73,7 +108,7 @@ import { UiIconComponent } from './ui-icon.component';
         </section>
       }
 
-      <section class="surface-panel section-card">
+      <section id="novo-atendimento" class="surface-panel section-card">
         <div class="section-title"><div><p class="eyebrow">Novo</p><h2>Agendar pela recepção</h2></div>
           <app-icon name="clock" /></div>
         <p class="muted-copy">Escolha serviço, profissional e data para ver os horários livres e criar o agendamento.</p>
@@ -119,6 +154,9 @@ export class AgendaOperacionalComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly api = inject(AgendamentoApi);
   private readonly estabelecimentos = inject(EstabelecimentoService);
+  private readonly rota = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  @ViewChild('filtroData') private filtroData?: ElementRef<HTMLInputElement>;
   readonly itens = signal<Agendamento[]>([]);
   readonly profissionais = signal<Profissional[]>([]);
   readonly servicos = signal<ServicoPublico[]>([]);
@@ -129,6 +167,7 @@ export class AgendaOperacionalComponent implements OnInit {
   readonly carregando = signal(false);
   readonly enviando = signal(false);
   readonly erro = signal('');
+  readonly erroAgenda = signal('');
   readonly sucesso = signal('');
   data = new Date().toISOString().slice(0, 10);
   dataNova = this.data;
@@ -151,9 +190,19 @@ export class AgendaOperacionalComponent implements OnInit {
   ngOnInit(): void {
     const id = this.unidadeId();
     if (!id) { this.erro.set('Filial não encontrada.'); return; }
+    this.lerFiltrosUrl();
     this.carregar();
     this.estabelecimentos.profissionais(id).subscribe({
-      next: lista => this.profissionais.set(lista), error: e => this.erro.set(AuthService.mensagemErro(e))
+      next: lista => {
+        this.profissionais.set(lista);
+        if (this.profissionalFiltro !== null
+            && !lista.some(p => p.id === this.profissionalFiltro)) {
+          this.profissionalFiltro = null;
+          this.atualizarUrl();
+          this.carregar();
+        }
+      },
+      error: e => this.erro.set(AuthService.mensagemErro(e))
     });
     this.estabelecimentos.servicosDisponiveis(id).subscribe({
       next: lista => { this.servicos.set(lista); this.servicoId = lista[0]?.id ?? null; this.trocarServico(); },
@@ -171,11 +220,57 @@ export class AgendaOperacionalComponent implements OnInit {
   }
   carregar(): void {
     if (!this.unidadeId() || !this.data) { return; }
-    this.carregando.set(true); this.erro.set('');
+    this.carregando.set(true); this.erroAgenda.set('');
     this.api.filial(this.unidadeId(), this.data, this.data, this.profissionalFiltro ?? undefined).subscribe({
       next: lista => { this.itens.set(lista); this.carregando.set(false); },
-      error: e => { this.erro.set(AuthService.mensagemErro(e)); this.carregando.set(false); }
+      error: e => { this.erroAgenda.set(AuthService.mensagemErro(e)); this.carregando.set(false); }
     });
+  }
+  vazio() { return orientacaoVazia('recepcao-sem-atendimentos'); }
+  chipsFiltros(): FiltroAtivo[] {
+    const chips: FiltroAtivo[] = [{ chave: 'data', rotulo: 'Data', valor: formatarData(this.data) }];
+    if (this.profissionalFiltro !== null) {
+      chips.push({ chave: 'profissionalId', rotulo: 'Profissional',
+        valor: this.nomeProfissional(this.profissionalFiltro) });
+    }
+    return chips;
+  }
+  estadoAgenda() {
+    return classificarLista({ carregando: this.carregando(), erro: !!this.erroAgenda(),
+      total: this.itens().length, filtrosAtivos: this.profissionalFiltro !== null ? 1 : 0 });
+  }
+  aplicarData(valor: string): void {
+    if (!valor) { return; }
+    this.data = valor;
+    this.carregar();
+    this.atualizarUrl();
+  }
+  aplicarProfissional(valor: number | null): void {
+    this.profissionalFiltro = valor;
+    this.carregar();
+    this.atualizarUrl();
+  }
+  limparFiltros(): void {
+    this.data = new Date().toISOString().slice(0, 10);
+    this.profissionalFiltro = null;
+    this.carregar();
+    this.atualizarUrl();
+  }
+  agendarAtendimento(): void {
+    const destino = typeof document === 'undefined' ? null : document.getElementById('novo-atendimento');
+    destino?.scrollIntoView({ block: 'start' });
+    (destino?.querySelector('select') as HTMLElement | null)?.focus();
+  }
+  focarPeriodo(): void { this.filtroData?.nativeElement.focus(); }
+  private lerFiltrosUrl(): void {
+    const params = this.rota.snapshot.queryParamMap;
+    const data = params.get('data') ?? '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(data)) { this.data = data; }
+    this.profissionalFiltro = idUrlValido(params.get('profissionalId'));
+  }
+  private atualizarUrl(): void {
+    void this.router.navigate([], { relativeTo: this.rota, replaceUrl: true,
+      queryParams: parametrosFiltrosUrl({ data: this.data, profissionalId: this.profissionalFiltro }) });
   }
   trocarServico(): void {
     this.profissionalId = this.habilitados()[0]?.id ?? null;
