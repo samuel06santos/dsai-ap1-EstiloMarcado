@@ -29,10 +29,10 @@ relatórios operacionais e o painel do cliente tenham dados representativos.
 
 - Um arquivo SQL de seed versionado no repositório.
 - Um script de execução para Windows/PowerShell e um para Linux/macOS.
-- Dados mock de: dois estabelecimentos, quatro filiais (`unidade`), oito
-  profissionais, serviços, vínculos serviço–profissional, contas de acesso
-  (`usuario`), fichas de cliente (`cliente`), jornada semanal, exceções de
-  jornada, afastamentos, feriados, bloqueios de agenda e atendimentos.
+- Dados mock de: três estabelecimentos, quatorze filiais (`unidade`), dezoito
+  profissionais, trinta e três serviços, vínculos serviço–profissional, contas
+  de acesso (`usuario`), fichas de cliente (`cliente`), jornada semanal, exceções
+  de jornada, afastamentos, feriados, bloqueios de agenda e atendimentos.
 - **Agenda ampliada**: atendimentos distribuídos entre dias passados
   (histórico, consumido pelo painel do cliente e pelos relatórios) e próximos
   dias (agenda diária/semanal/mensal do profissional e agenda operacional). O
@@ -232,13 +232,14 @@ para que a agenda semeada permaneça nos próximos dias.
 
 ### Estabelecimentos e filiais (`estabelecimento`, `unidade`)
 
-Dois estabelecimentos, cada um com filiais próprias, para exercitar isolamento
+Três estabelecimentos, cada um com filiais próprias, para exercitar isolamento
 por filial, relatórios e a página pública de cada unidade.
 
 | `estabelecimento.id` | Nome |
 | --- | --- |
 | 1000 | Estilo Marcado (Mock) |
 | 1001 | Studio Bella (Mock) |
+| 1002 | Belle Hair (Mock) |
 
 | `unidade.id` | Nome | Principal | Estabelecimento | Endereço | Telefone |
 | --- | --- | --- | --- | --- | --- |
@@ -246,9 +247,19 @@ por filial, relatórios e a página pública de cada unidade.
 | 1001 | Unidade Batista Campos | Não | 1000 | Rua dos Mundurucus, 2450 - Belém/PA | (91) 3222-2000 |
 | 1002 | Unidade Nazaré | Sim | 1001 | Tv. Quintino Bocaiúva, 780 - Belém/PA | (91) 3223-3000 |
 | 1003 | Unidade Umarizal | Não | 1001 | Rua Domingos Marreiros, 1500 - Belém/PA | (91) 3223-4000 |
+| 1004 | Unidade Guamá | Não | 1000 | Av. Perimetral, 900 - Belém/PA | (91) 3224-5000 |
+| 1005 | Unidade Marco | Não | 1000 | Av. Alcindo Cacela, 2200 - Belém/PA | (91) 3224-6000 |
+| 1006 | Unidade Icoaraci | Não | 1000 | Rod. Augusto Montenegro, 4300 - Belém/PA | (91) 3224-7000 |
+| 1007 | Unidade Outeiro | Não | 1000 | Estrada do Outeiro, 500 - Belém/PA | (91) 3224-8000 |
+| 1008 | Unidade Pedreira | Não | 1001 | Av. Pedro Miranda, 1200 - Belém/PA | (91) 3225-5000 |
+| 1009 | Unidade Sacramenta | Não | 1001 | Av. Senador Lemos, 3000 - Belém/PA | (91) 3225-6000 |
+| 1010 | Unidade Canudos | Não | 1001 | Av. Independência, 800 - Belém/PA | (91) 3225-7000 |
+| 1011 | Unidade Ananindeua | Sim | 1002 | BR-316, km 8, 1500 - Ananindeua/PA | (91) 3226-5000 |
+| 1012 | Unidade Castanhal | Não | 1002 | Av. Barão do Rio Branco, 1100 - Castanhal/PA | (91) 3226-6000 |
+| 1013 | Unidade Marituba | Não | 1002 | Rod. BR-316, km 12, 200 - Marituba/PA | (91) 3226-7000 |
 
 Todas usam `America/Sao_Paulo` e estão ativas. Cada estabelecimento tem
-exatamente uma filial principal.
+exatamente uma filial principal (1000, 1002 e 1011).
 
 ### Profissionais (`profissional`)
 
@@ -262,10 +273,23 @@ exatamente uma filial principal.
 | 1005 | Rafael Nunes | 1002 | Barbeiro e especialista em barba. |
 | 1006 | Patrícia Gomes | 1003 | Manicure e cabeleireira. |
 | 1007 | Lucas Barros | 1003 | Barbeiro e terapeuta capilar. |
+| 1008 | Renata Dias | 1004 | Cabeleireira e escovista. |
+| 1009 | Bruno Carvalho | 1005 | Barbeiro e especialista em barba. |
+| 1010 | Camila Fontes | 1006 | Cabeleireira e manicure. |
+| 1011 | Thiago Moraes | 1007 | Barbeiro e terapeuta capilar. |
+| 1012 | Larissa Pinto | 1008 | Colorista e cabeleireira. |
+| 1013 | Gustavo Reis | 1009 | Barbeiro e designer de sobrancelha. |
+| 1014 | Aline Barbosa | 1010 | Manicure e pedicure. |
+| 1015 | Marcelo Tavares | 1011 | Barbeiro e especialista em barba. |
+| 1016 | Sofia Ribeiro | 1012 | Cabeleireira e manicure. |
+| 1017 | Vítor Hugo | 1013 | Barbeiro e colorista. |
 
-Cada filial tem dois profissionais. Os quatro novos profissionais têm conta de
-acesso própria (ver "Contas de acesso") e jornada cadastrada (ver "Jornada
-semanal").
+As quatro primeiras filiais têm dois profissionais cada; as dez filiais novas
+têm um profissional cada, para que seus serviços tenham execução. Os
+profissionais `1000`–`1007` têm conta de acesso própria (ver "Contas de
+acesso"); os profissionais `1008`–`1017` existem sem conta, mas têm jornada
+cadastrada e serviços vinculados, de modo que a página pública de cada filial
+ofereça horários.
 
 ### Serviços (`servico`) e vínculos (`servico_profissional`)
 
@@ -284,6 +308,26 @@ semanal").
 | 1023 | Corte Masculino | 1003 | 30 min | R$ 45,00 | 10 min | 1006, 1007 |
 | 1024 | Manicure | 1003 | 45 min | R$ 50,00 | 10 min | 1006 |
 | 1025 | Hidratação | 1003 | 40 min | R$ 70,00 | 10 min | 1006, 1007 |
+| 1100 | Corte Masculino | 1004 | 30 min | R$ 45,00 | 10 min | 1008 |
+| 1101 | Corte Feminino | 1004 | 60 min | R$ 85,00 | 10 min | 1008 |
+| 1102 | Corte Masculino | 1005 | 30 min | R$ 45,00 | 10 min | 1009 |
+| 1103 | Barba | 1005 | 30 min | R$ 35,00 | 10 min | 1009 |
+| 1104 | Corte Feminino | 1006 | 60 min | R$ 85,00 | 10 min | 1010 |
+| 1105 | Manicure | 1006 | 45 min | R$ 50,00 | 10 min | 1010 |
+| 1106 | Corte Masculino | 1007 | 30 min | R$ 45,00 | 10 min | 1011 |
+| 1107 | Hidratação | 1007 | 40 min | R$ 70,00 | 10 min | 1011 |
+| 1108 | Corte Masculino | 1008 | 30 min | R$ 45,00 | 10 min | 1012 |
+| 1109 | Coloração | 1008 | 120 min | R$ 180,00 | 15 min | 1012 |
+| 1110 | Corte Feminino | 1009 | 60 min | R$ 85,00 | 10 min | 1013 |
+| 1111 | Manicure | 1009 | 45 min | R$ 50,00 | 10 min | 1013 |
+| 1112 | Barba | 1010 | 30 min | R$ 35,00 | 10 min | 1014 |
+| 1113 | Hidratação | 1010 | 40 min | R$ 70,00 | 10 min | 1014 |
+| 1114 | Corte Masculino | 1011 | 30 min | R$ 45,00 | 10 min | 1015 |
+| 1115 | Corte Feminino | 1011 | 60 min | R$ 85,00 | 10 min | 1015 |
+| 1116 | Manicure | 1012 | 45 min | R$ 50,00 | 10 min | 1016 |
+| 1117 | Hidratação | 1012 | 40 min | R$ 70,00 | 10 min | 1016 |
+| 1118 | Corte Masculino | 1013 | 30 min | R$ 45,00 | 10 min | 1017 |
+| 1119 | Coloração | 1013 | 120 min | R$ 180,00 | 15 min | 1017 |
 
 O índice `uk_servico_unidade_nome_normalizado` (migração `V14`) garante que o
 nome é único por filial sem diferenciar maiúsculas nem espaços de borda; por
@@ -353,6 +397,16 @@ intervalos por dia útil, separando manhã e tarde.
 | Rafael Nunes (1005) | 2–6 | 10:00–14:00 e 15:00–19:00 |
 | Patrícia Gomes (1006) | 1–5 | 08:00–12:00 e 13:00–17:00 |
 | Lucas Barros (1007) | 1–5 | 10:00–13:00 e 14:00–20:00 |
+| Renata Dias (1008) | 1–5 | 09:00–12:00 e 13:00–18:00 |
+| Bruno Carvalho (1009) | 1–5 | 09:00–12:00 e 13:00–18:00 |
+| Camila Fontes (1010) | 1–5 | 09:00–12:00 e 13:00–18:00 |
+| Thiago Moraes (1011) | 1–5 | 09:00–12:00 e 13:00–18:00 |
+| Larissa Pinto (1012) | 1–5 | 09:00–12:00 e 13:00–18:00 |
+| Gustavo Reis (1013) | 1–5 | 09:00–12:00 e 13:00–18:00 |
+| Aline Barbosa (1014) | 1–5 | 09:00–12:00 e 13:00–18:00 |
+| Marcelo Tavares (1015) | 1–5 | 09:00–12:00 e 13:00–18:00 |
+| Sofia Ribeiro (1016) | 1–5 | 09:00–12:00 e 13:00–18:00 |
+| Vítor Hugo (1017) | 1–5 | 09:00–12:00 e 13:00–18:00 |
 
 ### Exceções de jornada (`excecao_jornada`, `excecao_jornada_intervalo`)
 
@@ -595,12 +649,15 @@ responsabilidade da aplicação.
 
 ## Critérios de aceitação
 
-- Em um banco recém-migrado, a seed insere exatamente 2 estabelecimentos, 4
-  filiais, 8 profissionais, 13 serviços, 19 vínculos serviço–profissional, 5
-  clientes, 16 contas, 80 intervalos de jornada, 3 exceções, 2 afastamentos, 3
+- Em um banco recém-migrado, a seed insere exatamente 3 estabelecimentos, 14
+  filiais, 18 profissionais, 33 serviços, 39 vínculos serviço–profissional, 5
+  clientes, 16 contas, 180 intervalos de jornada, 3 exceções, 2 afastamentos, 3
   feriados, 3 bloqueios, 41 atendimentos, 62 eventos de agendamento, 5
   solicitações de lista de espera, 8 eventos de lista de espera, 4 ofertas, 3
   preferências de notificação, 6 notificações internas e 6 itens de outbox.
+- Cada filial nova (1004–1013) tem um profissional ativo e pelo menos dois
+  serviços vinculados, de modo que a página pública e o motor de disponibilidade
+  ofereçam horários para todas as filiais.
 - A agenda cobre dias passados e futuros; os atendimentos `CONFIRMADO` no passado
   aparecem no histórico do painel do cliente e nos relatórios, e os futuros
   alimentam a agenda em calendário do profissional.
