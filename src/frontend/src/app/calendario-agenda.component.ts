@@ -12,6 +12,7 @@ export interface CelulaMes {
   selecionado: boolean;
   total: number;
   estados: string[];
+  eventos: AgendaItem[];
 }
 
 export interface DiaSemana {
@@ -102,6 +103,13 @@ function minutosDe(hora: string): number {
                 (keydown)="tecla($event, celula.dia)">
                 <span class="cal-celula-numero">{{ celula.numero }}</span>
                 @if (celula.total) {
+                  <span class="cal-celula-eventos" aria-hidden="true">
+                    @for (item of celula.eventos; track item.id) {
+                      <span [class]="'cal-mini-event estado-' + item.status.toLowerCase()">
+                        {{ item.inicio.slice(11, 16) }} {{ item.servico }}
+                      </span>
+                    }
+                  </span>
                   <span class="cal-celula-total">{{ celula.total }} atendimento{{ celula.total > 1 ? 's' : '' }}</span>
                   <span class="cal-pontos">
                     @for (estado of celula.estados; track estado) {
@@ -142,6 +150,18 @@ function minutosDe(hora: string): number {
           }
         </div>
       } @else {
+        @if (visao === 'SEMANA') {
+          <div class="cal-mobile-week" role="group" aria-label="Dias da semana">
+            @for (dia of diasSemana(); track dia.dia) {
+              <button type="button" [class.is-selecionado]="dia.selecionado"
+                [attr.aria-pressed]="dia.selecionado" [attr.aria-label]="rotuloDiaSemana(dia)"
+                (click)="selecionar(dia.dia)">
+                <span>{{ dia.nome }}</span><strong>{{ dia.numero }}</strong>
+                <small>{{ itensDoDia(dia.dia).length }}</small>
+              </button>
+            }
+          </div>
+        }
         <div class="cal-dia" role="list">
           @for (item of itensDoDia(diaSelecionado); track item.id) {
             <button type="button" role="listitem" class="cal-dia-item"
@@ -234,7 +254,8 @@ export class CalendarioAgendaComponent implements OnChanges, OnInit {
         hoje: dia === hoje,
         selecionado: dia === this.diaSelecionado,
         total: lista.length,
-        estados: [...new Set(lista.map(item => item.status))]
+        estados: [...new Set(lista.map(item => item.status))],
+        eventos: lista.slice(0, 2)
       };
     });
   }
@@ -311,6 +332,7 @@ export class CalendarioAgendaComponent implements OnChanges, OnInit {
   private deslocar(direcao: number): void {
     if (this.visao === 'MES') {
       const data = dataDeIso(this.diaSelecionado);
+      data.setDate(1);
       data.setMonth(data.getMonth() + direcao);
       this.diaSelecionadoChange.emit(isoDeData(data));
     } else {
@@ -348,6 +370,12 @@ export class CalendarioAgendaComponent implements OnChanges, OnInit {
     const data = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric',
       month: 'long', year: 'numeric' }).format(dataDeIso(celula.dia));
     return `${data}, ${celula.total} atendimento${celula.total === 1 ? '' : 's'}`;
+  }
+
+  rotuloDiaSemana(dia: DiaSemana): string {
+    const data = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit',
+      month: '2-digit', year: 'numeric' }).format(dataDeIso(dia.dia));
+    return `${data}, ${this.itensDoDia(dia.dia).length} atendimentos`;
   }
 
   rotuloItem(item: AgendaItem): string {

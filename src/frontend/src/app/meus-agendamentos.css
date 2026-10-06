@@ -1,0 +1,17 @@
+:host { display: block; }
+.client-calendar-panel { display: grid; gap: 1.1rem; }
+.client-calendar-filters { display: flex; flex-wrap: wrap; gap: .85rem; align-items: end; }
+.client-calendar-filters label { flex: 1 1 200px; max-width: 320px; }
+.client-calendar-filters select { display: block; width: 100%; margin-top: .35rem; }
+.client-day-panel { display: grid; gap: .85rem; }
+.client-day-heading { display: flex; flex-wrap: wrap; gap: .6rem; align-items: end; justify-content: space-between; }
+.client-day-heading h2 { margin: .15rem 0 0; }
+.client-day-heading > span { color: var(--muted); font-size: .85rem; }
+.client-day-panel .user-list { margin-top: 0; }
+.client-day-panel .user-list article.client-item-selected { box-shadow: inset 0 0 0 2px var(--wine); background: #fdf6f4; }
+.client-day-panel .user-list article.is-cancelled { opacity: .72; }
+.client-day-panel .user-list small { line-height: 1.4; }
+@media (max-width: 767px) {
+  .client-calendar-filters label { max-width: none; }
+  .client-day-heading h2 { font-size: 1.35rem; }
+}
