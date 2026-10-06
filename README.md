@@ -693,22 +693,22 @@ Resultado informado para os arquivos versionados, produzido com
 cloc . --vcs=git --exclude-dir=node_modules,vendor,dist,build,prompts --exclude-lang=Markdown,JSON,YAML,CSV,Text,SVG --not-match-f='(lock|\.min\.)'
 ```
 
-Foram identificados 287 arquivos de texto, dos quais 273 são únicos e 58 foram
-ignorados. A execução levou 13,02 s (18,0 arquivos/s; 1.753,5 linhas/s).
+Foram identificados 315 arquivos de texto, dos quais 300 são únicos e 60 foram
+ignorados. A execução levou 13,91 s (18,8 arquivos/s; 1.923,6 linhas/s).
 
 | Linguagem | Arquivos | Em branco | Comentários | Código |
 | --- | ---: | ---: | ---: | ---: |
-| Java | 165 | 1.779 | 276 | 11.353 |
-| TypeScript | 32 | 428 | 46 | 6.122 |
+| Java | 184 | 2.188 | 287 | 14.537 |
+| TypeScript | 33 | 432 | 46 | 6.152 |
 | SQL | 17 | 68 | 164 | 1.023 |
 | CSS | 7 | 15 | 1 | 660 |
-| JavaScript | 5 | 22 | 0 | 210 |
+| JavaScript | 11 | 48 | 0 | 460 |
 | Python | 1 | 32 | 18 | 164 |
 | Maven | 1 | 5 | 0 | 120 |
 | PowerShell | 1 | 19 | 19 | 93 |
 | Bourne Shell | 1 | 12 | 15 | 82 |
 | Dockerfile | 4 | 28 | 13 | 38 |
 | HTML | 1 | 0 | 0 | 13 |
-| **Total** | **235** | **2.408** | **552** | **19.878** |
+| **Total** | **261** | **2.847** | **563** | **23.342** |
 
 Essa contagem inclui os testes versionados, as migrações SQL e a seed.
