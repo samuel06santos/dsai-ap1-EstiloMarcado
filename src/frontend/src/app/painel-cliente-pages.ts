@@ -31,6 +31,27 @@ function diaNoFuso(fuso: string): string {
           aria-label="Criar agendamento"><span aria-hidden="true">+</span> Criar agendamento</a>
       </div>
 
+      @if (!carregando() && painel(); as dados) {
+        <section class="client-summary-section" aria-labelledby="client-summary-title">
+          <h2 id="client-summary-title">Resumo</h2>
+          <p class="muted-copy">Seus atendimentos em números.</p>
+          <div class="client-summary-grid">
+            <article class="surface-panel client-summary-card">
+              <h3>Próximos atendimentos</h3>
+              <strong class="client-summary-value">{{ dados.resumo.proximosAtivos }}</strong>
+            </article>
+            <article class="surface-panel client-summary-card">
+              <h3>Realizados</h3>
+              <strong class="client-summary-value">{{ dados.resumo.realizados }}</strong>
+            </article>
+            <article class="surface-panel client-summary-card">
+              <h3>Cancelados</h3>
+              <strong class="client-summary-value">{{ dados.resumo.cancelados }}</strong>
+            </article>
+          </div>
+        </section>
+      }
+
       @if (erro()) {
         <div class="notice error client-dashboard-error" role="alert">
           <p>{{ erro() }}</p>
@@ -43,12 +64,12 @@ function diaNoFuso(fuso: string): string {
 
       @if (carregando()) {
         <p class="loading-state" role="status">Carregando seu painel…</p>
-        <div class="surface-panel client-loading-appointment" aria-hidden="true"></div>
         <div class="client-summary-grid" aria-hidden="true">
           <div class="surface-panel client-summary-card client-summary-placeholder"></div>
           <div class="surface-panel client-summary-card client-summary-placeholder"></div>
           <div class="surface-panel client-summary-card client-summary-placeholder"></div>
         </div>
+        <div class="surface-panel client-loading-appointment" aria-hidden="true"></div>
       } @else if (painel(); as dados) {
         @if (!dados.cliente.telefoneContato) {
           <p class="notice">Cadastre um telefone no seu perfil para que a equipe consiga falar com você.
@@ -109,25 +130,6 @@ function diaNoFuso(fuso: string): string {
             </div>
           </article>
         }
-
-        <section class="client-summary-section" aria-labelledby="client-summary-title">
-          <h2 id="client-summary-title">Resumo</h2>
-          <p class="muted-copy">Seus atendimentos em números.</p>
-          <div class="client-summary-grid">
-            <article class="surface-panel client-summary-card">
-              <h3>Próximos atendimentos</h3>
-              <strong class="client-summary-value">{{ dados.resumo.proximosAtivos }}</strong>
-            </article>
-            <article class="surface-panel client-summary-card">
-              <h3>Realizados</h3>
-              <strong class="client-summary-value">{{ dados.resumo.realizados }}</strong>
-            </article>
-            <article class="surface-panel client-summary-card">
-              <h3>Cancelados</h3>
-              <strong class="client-summary-value">{{ dados.resumo.cancelados }}</strong>
-            </article>
-          </div>
-        </section>
 
         <article class="surface-panel section-card">
           <div class="section-title"><div><p class="eyebrow">Sua trajetória</p>
