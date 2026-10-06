@@ -653,6 +653,17 @@ Agent: deepseek/<modelo-exato> + manual
 Spec: SPEC/AAAA-MM-DD-nome-da-parte.md
 ```
 
+### O que ficou de fora?
+
+A [SPEC de visão geral](SPEC/2026-09-30-visao-geral.md) define como fora do
+escopo inicial:
+
+1. Processamento de pagamentos reais.
+2. Integração direta com WhatsApp ou outros mensageiros externos.
+3. Aplicativos nativos para Android e iOS.
+4. Marketplace entre estabelecimentos diferentes.
+5. Importação de dados de sistemas de terceiros.
+
 ### Três prompts: o que melhor funcionou, o que pior funcionou e o que mudou o rumo do projeto, e por quê
 
 Entre os prompts registrados em `prompts/sessoes/`, estes três se destacam pelos
@@ -685,6 +696,21 @@ resultados documentados nas respectivas sessões:
    [Sessão Codex](prompts/sessoes/2026-10-05-0603-codex-gpt-6-sol.jsonl).
 
 ## 18. Contagem de linhas (cloc)
+
+### Os números: linhas, specs, prompts, sessões e horas
+
+| Medida | Quantidade |
+| --- | ---: |
+| Linhas de código (`cloc`) | 23.342 |
+| SPECs versionadas em `SPEC/` | 25 |
+| Prompts de usuário distintos nas exportações | 97 |
+| Sessões | 10 IDs distintos em 27 arquivos exportados |
+| Horas de trabalho | Não aferidas pelas exportações |
+
+Os prompts foram contados por ID de mensagem, sem repetir pedidos presentes em
+mais de uma exportação e sem contar metadados de interface ou anexos isolados.
+Os arquivos de sessão registram eventos e horários, mas não uma medição
+confiável das horas de trabalho.
 
 Resultado informado para os arquivos versionados, produzido com
 [`cloc`](https://github.com/AlDanial/cloc) v1.98:
