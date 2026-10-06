@@ -44,14 +44,14 @@ function formatarData(data: string): string {
           <div class="content-card" style="max-width: none; margin: .75rem 0;">
             <strong>{{ dia.nome }}</strong>
             @for (intervalo of intervalosDoDia(dia.valor); track intervalo) {
-              <div class="toolbar-actions" style="margin-top: .5rem;">
+              <div class="jornada-intervalo">
                 <input type="time" [(ngModel)]="intervalo.horaInicio" [name]="'i' + dia.valor + intervalo.horaInicio">
-                <span>até</span>
+                <span class="jornada-ate">até</span>
                 <input type="time" [(ngModel)]="intervalo.horaFim" [name]="'f' + dia.valor + intervalo.horaFim">
                 <button type="button" class="button ghost small" (click)="removerIntervalo(intervalo)">Remover</button>
               </div>
             }
-            <button type="button" class="button ghost small" style="margin-top: .5rem;"
+            <button type="button" class="button ghost small jornada-adicionar"
               (click)="adicionarIntervalo(dia.valor)">Adicionar intervalo</button>
           </div>
         }
