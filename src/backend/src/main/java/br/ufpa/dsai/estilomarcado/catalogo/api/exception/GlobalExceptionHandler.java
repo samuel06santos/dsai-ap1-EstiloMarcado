@@ -20,6 +20,7 @@ import br.ufpa.dsai.estilomarcado.autenticacao.exception.TokenInvalidoException;
 import br.ufpa.dsai.estilomarcado.disponibilidade.exception.ConflitoAtendimentoException;
 import br.ufpa.dsai.estilomarcado.disponibilidade.exception.ItemConflito;
 import br.ufpa.dsai.estilomarcado.agendamento.AgendamentoConflitoException;
+import br.ufpa.dsai.estilomarcado.estabelecimento.service.ConsultaFiliaisInvalidaException;
 import org.springframework.dao.DataIntegrityViolationException;
 
 /**
@@ -27,6 +28,12 @@ import org.springframework.dao.DataIntegrityViolationException;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ConsultaFiliaisInvalidaException.class)
+    public ResponseEntity<ErroResponse> handleConsultaFiliais(ConsultaFiliaisInvalidaException ex) {
+        return ResponseEntity.badRequest().body(new ErroResponse(400,
+                "filtros invalidos", Map.of(ex.getCampo(), ex.getMessage())));
+    }
 
     @ExceptionHandler(AgendamentoConflitoException.class)
     public ResponseEntity<ErroAgendamentoResponse> handleAgendamento(AgendamentoConflitoException ex) {

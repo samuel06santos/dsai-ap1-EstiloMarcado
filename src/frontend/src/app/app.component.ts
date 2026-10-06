@@ -143,6 +143,7 @@ export class AppComponent implements OnInit {
     switch (sessao.perfil) {
       case 'CLIENTE': return [
         { texto: 'Início', icone: 'home', destino: '/' },
+        { texto: 'Explorar filiais', icone: 'building', destino: '/filiais' },
         { texto: 'Meus agendamentos', icone: 'calendar', destino: '/meus-agendamentos' },
         { texto: 'Lista de espera', icone: 'clock', destino: '/lista-espera' },
         { texto: 'Notificações', icone: 'mail', destino: '/notificacoes' },

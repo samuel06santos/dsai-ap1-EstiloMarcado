@@ -12,11 +12,13 @@ import { AgendaProfissionalComponent, MinhaFilialComponent } from './app/workspa
 import { AdministracaoAgendaComponent, MinhaDisponibilidadeComponent } from './app/disponibilidade-pages';
 import { MeusAgendamentosComponent, RevisaoAgendamentoComponent } from './app/agendamento-pages';
 import { AgendaOperacionalComponent } from './app/agenda-operacional.component';
+import { FiliaisPublicasComponent } from './app/filiais-publicas.component';
 import { FilaEquipeComponent, HistoricoAgendamentoComponent, ListaEsperaComponent, NotificacoesComponent,
   RelatorioOperacionalComponent } from './app/operacao-pages';
 
 const routes: Routes = [
   { path: '', component: HomeComponent },
+  { path: 'filiais', component: FiliaisPublicasComponent },
   { path: 'entrar', component: LoginComponent },
   { path: 'cadastro', component: CadastroComponent },
   { path: 'ativar', component: AtivacaoComponent },

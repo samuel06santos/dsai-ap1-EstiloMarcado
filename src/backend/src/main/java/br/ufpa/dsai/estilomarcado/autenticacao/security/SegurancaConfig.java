@@ -96,6 +96,8 @@ public class SegurancaConfig {
                         .requestMatchers(HttpMethod.POST, "/api/autenticacao/contas/google").authenticated()
                         .requestMatchers("/api/autenticacao/**").permitAll()
                         .requestMatchers(HttpMethod.GET,
+                                "/api/filiais/publicas", "/api/filiais/publicas/servicos").permitAll()
+                        .requestMatchers(HttpMethod.GET,
                                 "/api/unidades/*/servicos", "/api/servicos/*").permitAll()
                         .requestMatchers(HttpMethod.GET,
                                 "/api/unidades/*/servicos/*/horarios").permitAll()

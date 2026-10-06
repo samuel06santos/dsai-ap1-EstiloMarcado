@@ -370,7 +370,12 @@ export class EstabelecimentoAdminComponent implements OnInit {
   imports: [CommonModule, FormsModule, RouterLink, UiIconComponent],
   template: `
     <section class="content-card wide public-branch">
-      @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
+      @if (erro()) {
+        <div class="notice error" role="alert">
+          <p>{{ erro() }}</p>
+          <a routerLink="/filiais" [queryParams]="retornoFiliais">Explorar outras filiais</a>
+        </div>
+      }
       @if (filial(); as atual) {
         <p class="eyebrow">Filial</p><h1>{{ atual.nome }}</h1>
         @if (atual.endereco) { <p>{{ atual.endereco }}</p> }
@@ -452,13 +457,20 @@ export class EstabelecimentoAdminComponent implements OnInit {
           }</div>
         </section>
       }
-      <a routerLink="/">Voltar</a>
+      @if (filial()) {
+        <a routerLink="/filiais" [queryParams]="retornoFiliais">Voltar às filiais</a>
+      }
     </section>
   `
 })
 export class FilialPublicaComponent implements OnInit {
   private readonly api = inject(EstabelecimentoService);
   private readonly route = inject(ActivatedRoute);
+  readonly retornoFiliais = {
+    busca: this.route.snapshot.queryParamMap.get('busca') || null,
+    servico: this.route.snapshot.queryParamMap.getAll('servico'),
+    pagina: this.route.snapshot.queryParamMap.get('pagina') || 1
+  };
   readonly filial = signal<Filial | null>(null);
   readonly profissionais = signal<Profissional[]>([]);
   readonly servicos = signal<ServicoPublico[]>([]);
