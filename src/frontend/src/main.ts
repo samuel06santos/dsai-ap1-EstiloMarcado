@@ -7,10 +7,12 @@ import { credentialsInterceptor } from './app/auth.service';
 import { AtivacaoComponent, CadastroComponent, ContaComponent, FirebaseEmailActionComponent, LoginComponent,
   NovaSenhaComponent, RecuperacaoComponent, UsuariosAdminComponent } from './app/auth-pages';
 import { HomeComponent } from './app/public-home.component';
-import { EstabelecimentoAdminComponent, FilialPublicaComponent } from './app/estabelecimento-pages';
+import { EstabelecimentoAdminComponent } from './app/estabelecimento-pages';
+import { FilialPublicaComponent } from './app/filial-jornada.component';
+import { RevisaoAgendamentoComponent } from './app/revisao-guiada.component';
 import { AgendaProfissionalComponent, MinhaFilialComponent } from './app/workspace-pages';
 import { AdministracaoAgendaComponent, MinhaDisponibilidadeComponent } from './app/disponibilidade-pages';
-import { MeusAgendamentosComponent, RevisaoAgendamentoComponent } from './app/agendamento-pages';
+import { MeusAgendamentosComponent } from './app/agendamento-pages';
 import { AgendaOperacionalComponent } from './app/agenda-operacional.component';
 import { FiliaisPublicasComponent } from './app/filiais-publicas.component';
 import { FilaEquipeComponent, HistoricoAgendamentoComponent, ListaEsperaComponent, NotificacoesComponent,

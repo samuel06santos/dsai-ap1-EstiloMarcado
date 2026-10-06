@@ -7,6 +7,7 @@ import { finalize, retry } from 'rxjs';
 import { AuthService, ErroApi, MeuPerfil, MetodosLogin, Perfil, Usuario } from './auth.service';
 import { UiIconComponent } from './ui-icon.component';
 import { EstabelecimentoService, Profissional } from './estabelecimento.service';
+import { retornoRevisaoSeguro } from './agendamento-rascunho';
 
 
 @Component({
@@ -21,7 +22,8 @@ import { EstabelecimentoService, Profissional } from './estabelecimento.service'
         @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
         <button class="button primary" [disabled]="form.invalid || enviando()">{{ enviando() ? 'Entrando…' : 'Entrar' }}</button>
       </form>
-      <div class="auth-links"><a routerLink="/recuperar-conta">Esqueci minha senha</a><a routerLink="/cadastro">Criar conta</a></div>
+      <div class="auth-links"><a routerLink="/recuperar-conta">Esqueci minha senha</a>
+        <a routerLink="/cadastro" [queryParams]="retornoSeguro ? { retorno: retornoSeguro } : {}">Criar conta</a></div>
       @if (carregandoMetodos()) { <p role="status">Carregando opções de login…</p> }
       @if (erroMetodos()) {
         <div class="notice error" role="alert">
@@ -52,6 +54,7 @@ export class LoginComponent implements OnInit {
   readonly firebaseAtivo = signal(false);
   readonly carregandoMetodos = signal(false);
   readonly erroMetodos = signal(false);
+  readonly retornoSeguro = retornoRevisaoSeguro(this.route.snapshot.queryParamMap.get('retorno'));
 
   ngOnInit(): void {
     this.carregarMetodos();
@@ -89,10 +92,8 @@ export class LoginComponent implements OnInit {
         const destino = sessao.perfil === 'PROFISSIONAL' ? '/profissional/agenda'
           : sessao.perfil === 'ADMINISTRADOR' ? '/administracao/estabelecimento'
           : sessao.perfil === 'RECEPCAO' ? '/equipe/agendamentos' : '/';
-        const retorno = this.route.snapshot.queryParamMap.get('retorno');
-        const seguro = sessao.perfil === 'CLIENTE' && retorno?.startsWith('/unidades/')
-          && !retorno.startsWith('//') && !retorno.includes('://');
-        void this.router.navigateByUrl(seguro && retorno ? retorno : destino);
+        void this.router.navigateByUrl(sessao.perfil === 'CLIENTE' && this.retornoSeguro
+          ? this.retornoSeguro : destino);
   }
 }
 
@@ -105,7 +106,13 @@ export class LoginComponent implements OnInit {
       @if (sucesso()) {
         <div style="display: grid; gap: 1.25rem; margin-top: 1rem;">
           <div class="notice success"><strong>Confira seu e-mail.</strong><br>Enviamos as instrucoes de ativacao caso o endereco esteja disponivel.</div>
-          <a class="button ghost" routerLink="/entrar">Voltar para o login</a>
+          @if (retornoSeguro) {
+            <p>Depois de confirmar seu e-mail, volte à revisão para retomar a escolha. O link vale por 30 minutos;
+              se expirar, escolha outro horário na filial.</p>
+            <a class="button ghost" [attr.href]="retornoSeguro">Voltar à revisão</a>
+          }
+          <a class="button ghost" routerLink="/entrar"
+            [queryParams]="retornoSeguro ? { retorno: retornoSeguro } : {}">Voltar para o login</a>
         </div>
       } @else {
         <form (ngSubmit)="enviar()" #form="ngForm">
@@ -125,6 +132,8 @@ export class LoginComponent implements OnInit {
 })
 export class CadastroComponent {
   private readonly auth = inject(AuthService);
+  private readonly route = inject(ActivatedRoute);
+  readonly retornoSeguro = retornoRevisaoSeguro(this.route.snapshot.queryParamMap.get('retorno'));
   nome = ''; email = ''; senha = ''; confirmacaoSenha = '';
   readonly erro = signal(''); readonly sucesso = signal(false); readonly enviando = signal(false);
   enviar(): void {

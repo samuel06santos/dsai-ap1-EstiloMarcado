@@ -1,11 +1,10 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Agendamento, AgendamentoApi } from './agendamento.service';
 import { AuthService } from './auth.service';
-import { EstabelecimentoService, Filial, HorarioDisponivel, ServicoPublico } from './estabelecimento.service';
-import { UiIconComponent } from './ui-icon.component';
+import { EstabelecimentoService, HorarioDisponivel } from './estabelecimento.service';
 
 function diaAtual(fuso = 'America/Sao_Paulo'): string {
   const partes = new Intl.DateTimeFormat('en-US', { timeZone: fuso,
@@ -18,122 +17,21 @@ function mensagem(erro: unknown): string { return AuthService.mensagemErro(erro)
 
 @Component({
   standalone: true,
-  imports: [CommonModule, RouterLink, UiIconComponent],
-  template: `
-    <section class="page-stack">
-      <div class="page-heading"><p class="eyebrow">Agendamento</p><h1>Revise seu horário</h1>
-        <p>A reserva só será garantida quando você confirmar.</p></div>
-      @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
-      @if (sucesso(); as reservado) {
-        <article class="surface-panel section-card" role="status">
-          <app-icon name="calendar" /><h2>Agendamento realizado</h2>
-          <p>Comprovante #{{ reservado.id }} · {{ reservado.status }}</p>
-          <p>{{ reservado.servicoNome }} · {{ reservado.inicio.slice(0, 16).replace('T', ' ') }}</p>
-          <p>O próximo passo é aguardar a confirmação da equipe.</p>
-          <a class="button primary" routerLink="/meus-agendamentos">Ver meus agendamentos</a>
-        </article>
-      } @else if (filial() && servico() && horarioDisponivel()) {
-        <article class="surface-panel section-card">
-          <div class="section-title"><div><p class="eyebrow">Sua escolha</p>
-            <h2>{{ servico()!.nome }}</h2></div><app-icon name="scissors" /></div>
-          <div class="overview-grid">
-            <p><strong>Filial</strong><br>{{ filial()!.nome }}</p>
-            <p><strong>Profissional</strong><br>{{ nomeProfissional() }}</p>
-            <p><strong>Data e horário</strong><br>{{ inicio.slice(0, 16).replace('T', ' ') }}</p>
-            <p><strong>Duração e valor</strong><br>{{ servico()!.duracaoMinutos }} min ·
-              {{ servico()!.preco | currency:'BRL' }}</p>
-          </div>
-          <p class="muted-copy">Fuso horário: {{ filial()!.fusoHorario }}. A disponibilidade foi atualizada nesta página.</p>
-          @if (auth.sessao()?.perfil === 'CLIENTE') {
-            <button class="button primary" type="button" [disabled]="enviando()" (click)="confirmar()">
-              {{ enviando() ? 'Reservando…' : 'Confirmar agendamento' }}</button>
-          } @else if (!auth.sessao()) {
-            <a class="button primary" [routerLink]="['/entrar']" [queryParams]="{ retorno: retorno() }">
-              Entrar para continuar</a>
-            <a class="button ghost" routerLink="/cadastro">Criar conta</a>
-          } @else { <p class="notice">Entre com uma conta de cliente para reservar.</p> }
-        </article>
-      } @else if (carregando()) { <p role="status">Conferindo disponibilidade…</p> }
-      <a [routerLink]="['/unidades', unidadeId]">Voltar aos horários</a>
-    </section>
-  `
-})
-export class RevisaoAgendamentoComponent implements OnInit {
-  private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
-  private readonly estabelecimentos = inject(EstabelecimentoService);
-  private readonly agendamentos = inject(AgendamentoApi);
-  readonly auth = inject(AuthService);
-  readonly filial = signal<Filial | null>(null);
-  readonly servico = signal<ServicoPublico | null>(null);
-  readonly horarioDisponivel = signal(false);
-  readonly carregando = signal(true);
-  readonly enviando = signal(false);
-  readonly erro = signal('');
-  readonly sucesso = signal<Agendamento | null>(null);
-  readonly unidadeId = Number(this.route.snapshot.paramMap.get('id'));
-  readonly servicoId = Number(this.route.snapshot.queryParamMap.get('servicoId'));
-  readonly profissionalId = Number(this.route.snapshot.queryParamMap.get('profissionalId'));
-  readonly inicio = this.route.snapshot.queryParamMap.get('inicio') ?? '';
-  private readonly chaveReserva = crypto.randomUUID();
-
-  ngOnInit(): void {
-    if (![this.unidadeId, this.servicoId, this.profissionalId].every(id => Number.isInteger(id) && id > 0)
-        || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(this.inicio)) {
-      this.erro.set('Escolha um horário válido na página da filial.'); this.carregando.set(false); return;
-    }
-    this.estabelecimentos.filialPublica(this.unidadeId).subscribe({
-      next: filial => this.filial.set(filial), error: e => this.erro.set(mensagem(e))
-    });
-    this.estabelecimentos.servicosDisponiveis(this.unidadeId).subscribe({
-      next: servicos => this.servico.set(servicos.find(s => s.id === this.servicoId) ?? null),
-      error: e => this.erro.set(mensagem(e))
-    });
-    this.atualizarHorario();
-  }
-
-  retorno(): string { return this.router.url; }
-  nomeProfissional(): string {
-    return this.servico()?.profissionais.find(p => p.id === this.profissionalId)?.nome ?? 'Profissional';
-  }
-  atualizarHorario(): void {
-    this.carregando.set(true);
-    this.estabelecimentos.horarios(this.unidadeId, this.servicoId, this.inicio.slice(0, 10),
-      this.profissionalId).subscribe({
-        next: consulta => {
-          const livre = consulta.horarios.some(item => item.profissionalId === this.profissionalId
-            && item.inicio === this.inicio);
-          this.horarioDisponivel.set(livre);
-          if (!livre) { this.erro.set('Este horário não está mais livre. Escolha outro na filial.'); }
-          this.carregando.set(false);
-        },
-        error: e => { this.erro.set(mensagem(e)); this.carregando.set(false); }
-      });
-  }
-  confirmar(): void {
-    if (this.enviando() || !this.horarioDisponivel()) { return; }
-    this.enviando.set(true); this.erro.set('');
-    this.agendamentos.criar(this.unidadeId, { servicoId: this.servicoId,
-      profissionalId: this.profissionalId, inicio: this.inicio }, this.chaveReserva).subscribe({
-      next: reservado => { this.sucesso.set(reservado); this.enviando.set(false); },
-      error: e => {
-        this.erro.set(mensagem(e)); this.enviando.set(false);
-        if ((e as { error?: { codigo?: string } })?.error?.codigo === 'HORARIO_INDISPONIVEL') {
-          this.atualizarHorario();
-        }
-      }
-    });
-  }
-}
-
-@Component({
-  standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   template: `
     <section class="page-stack">
       <div class="page-heading"><p class="eyebrow">Sua agenda</p><h1>Meus agendamentos</h1>
         <p>Consulte seu histórico e cuide dos próximos horários.</p></div>
       <section class="surface-panel section-card">
+        @if (destacado(); as item) {
+          <article class="notice success" aria-label="Agendamento solicitado">
+            <strong>Agendamento #{{ item.id }} · {{ item.status }}</strong><br>
+            {{ item.servicoNome }} em {{ item.inicio.slice(0, 16).replace('T', ' às ') }}<br>
+            {{ item.unidadeNome ?? ('Filial #' + item.unidadeId) }} ·
+            {{ item.profissionalNome ?? ('Profissional #' + item.profissionalId) }}<br>
+            <a [routerLink]="['/agendamentos', item.id, 'historico']">Ver histórico deste agendamento</a>
+          </article>
+        }
         <div class="form-grid">
           <label>Mês <input type="month" [(ngModel)]="mes" (change)="carregar()"></label>
           <label>Filial<select [(ngModel)]="filtroUnidadeId" (ngModelChange)="carregar()">
@@ -202,19 +100,30 @@ export class RevisaoAgendamentoComponent implements OnInit {
 export class MeusAgendamentosComponent implements OnInit {
   private readonly api = inject(AgendamentoApi);
   private readonly estabelecimentos = inject(EstabelecimentoService);
+  private readonly route = inject(ActivatedRoute);
   readonly itens = signal<Agendamento[]>([]);
+  readonly destacado = signal<Agendamento | null>(null);
   readonly alternativas = signal<HorarioDisponivel[]>([]);
   readonly reagendando = signal<Agendamento | null>(null);
   readonly carregando = signal(false);
   readonly enviando = signal(false);
   readonly erro = signal('');
   readonly mensagemSucesso = signal('');
-  mes = diaAtual().slice(0, 7);
+  mes = /^\d{4}-(0[1-9]|1[0-2])$/.test(this.route.snapshot.queryParamMap.get('mes') ?? '')
+    ? this.route.snapshot.queryParamMap.get('mes')! : diaAtual().slice(0, 7);
   dataReagendamento = diaAtual();
   filtroUnidadeId: number | null = null;
   filtroServicoId: number | null = null;
 
-  ngOnInit(): void { this.carregar(); }
+  ngOnInit(): void {
+    const id = Number(this.route.snapshot.queryParamMap.get('id'));
+    if (Number.isSafeInteger(id) && id > 0) {
+      this.api.detalhe(id).subscribe({
+        next: item => { this.destacado.set(item); this.mes = item.inicio.slice(0, 7); this.carregar(); },
+        error: () => this.carregar()
+      });
+    } else { this.carregar(); }
+  }
 
   unidadesDisponiveis(): { id: number; nome: string }[] {
     const mapa = new Map<number, string>();
