@@ -13,6 +13,7 @@ export interface Sessao {
   perfil: Perfil;
   unidadeId: number | null;
   profissionalId: number | null;
+  fotoPerfilUrl: string | null;
 }
 
 export interface Usuario extends Sessao {
@@ -128,14 +129,21 @@ export class AuthService {
   }
 
   meuPerfil(): Observable<MeuPerfil> {
-    return this.http.get<MeuPerfil>('/api/usuarios/me');
+    return this.http.get<MeuPerfil>('/api/usuarios/me').pipe(tap(perfil => {
+      const sessao = this.sessao();
+      if (sessao?.id === perfil.id) {
+        this.sessao.set({ ...sessao, fotoPerfilUrl: perfil.fotoPerfilUrl });
+      }
+    }));
   }
 
   atualizarPerfil(nome: string, telefoneContato: string | null): Observable<MeuPerfil> {
     return this.mutacao(() => this.http.patch<MeuPerfil>('/api/usuarios/me',
       { nome, telefoneContato })).pipe(tap(perfil => {
         const sessao = this.sessao();
-        if (sessao) { this.sessao.set({ ...sessao, nome: perfil.nome }); }
+        if (sessao) {
+          this.sessao.set({ ...sessao, nome: perfil.nome, fotoPerfilUrl: perfil.fotoPerfilUrl });
+        }
       }));
   }
 

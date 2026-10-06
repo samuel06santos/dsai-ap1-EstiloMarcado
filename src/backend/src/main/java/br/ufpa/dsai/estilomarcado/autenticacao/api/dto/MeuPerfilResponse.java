@@ -8,9 +8,9 @@ import br.ufpa.dsai.estilomarcado.catalogo.model.Unidade;
 public record MeuPerfilResponse(
         Long id, String nome, String email, PerfilUsuario perfil, EstadoConta estado,
         Long unidadeId, Long profissionalId, String telefoneContato,
-        FilialResumo filial, EstabelecimentoResumo estabelecimento) {
+        FilialResumo filial, EstabelecimentoResumo estabelecimento, String fotoPerfilUrl) {
 
-    public static MeuPerfilResponse from(Usuario usuario) {
+    public static MeuPerfilResponse from(Usuario usuario, String fotoPerfilUrl) {
         Unidade unidade = usuario.getUnidade();
         return new MeuPerfilResponse(usuario.getId(), usuario.getNome(), usuario.getEmail(),
                 usuario.getPerfil(), usuario.getEstado(),
@@ -19,7 +19,8 @@ public record MeuPerfilResponse(
                 usuario.getTelefoneContato(),
                 unidade == null ? null : new FilialResumo(unidade.getId(), unidade.getNome(), unidade.isAtiva()),
                 unidade == null ? null : new EstabelecimentoResumo(
-                        unidade.getEstabelecimento().getId(), unidade.getEstabelecimento().getNome()));
+                        unidade.getEstabelecimento().getId(), unidade.getEstabelecimento().getNome()),
+                fotoPerfilUrl);
     }
 
     public record FilialResumo(Long id, String nome, boolean ativa) {}

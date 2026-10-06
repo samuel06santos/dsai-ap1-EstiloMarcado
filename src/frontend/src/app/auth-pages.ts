@@ -247,9 +247,13 @@ export class NovaSenhaComponent {
       @if (usuario(); as u) {
         <div class="profile-grid">
           <div class="profile-identity surface-panel">
-            <div class="profile-avatar"><img src="/avatar.svg" width="96" height="96" alt="Avatar padrão"></div>
+            <div class="profile-avatar"><img
+              [src]="u.fotoPerfilUrl && !fotoFalhou() ? u.fotoPerfilUrl : '/avatar.svg'"
+              (error)="fotoFalhou.set(true)" referrerpolicy="no-referrer"
+              width="96" height="96" alt=""></div>
             <h2>{{ u.nome }}</h2><span class="badge">{{ tituloPerfil(u.perfil) }}</span>
-            <p>A troca de foto estará disponível futuramente.</p>
+            <p>{{ u.fotoPerfilUrl && !fotoFalhou()
+              ? 'Foto da conta Google vinculada.' : 'Avatar padrão da conta.' }}</p>
           </div>
           <div class="surface-panel profile-details">
             <div class="section-title"><div><p class="eyebrow">Dados pessoais</p><h2>Informações de contato</h2></div><app-icon name="user" /></div>
@@ -310,12 +314,14 @@ export class ContaComponent implements OnInit {
   readonly salvando = signal(false);
   readonly metodos = signal<MetodosLogin | null>(null);
   readonly vinculando = signal(false);
+  readonly fotoFalhou = signal(false);
   nome = '';
   telefone = '';
   senhaVinculo = '';
   ngOnInit(): void {
     this.auth.meuPerfil().subscribe({
-      next: u => { this.usuario.set(u); this.nome = u.nome; this.telefone = u.telefoneContato ?? ''; },
+      next: u => { this.fotoFalhou.set(false); this.usuario.set(u);
+        this.nome = u.nome; this.telefone = u.telefoneContato ?? ''; },
       error: e => this.erro.set(AuthService.mensagemErro(e))
     });
     this.auth.metodosLogin().subscribe({ next: m => this.metodos.set(m) });
@@ -329,6 +335,9 @@ export class ContaComponent implements OnInit {
       .subscribe({ next: () => {
         this.mensagem.set('Google vinculado à sua conta.');
         this.auth.metodosLogin().subscribe({ next: atual => this.metodos.set(atual) });
+        this.auth.meuPerfil().subscribe({ next: atualizado => {
+          this.fotoFalhou.set(false); this.usuario.set(atualizado);
+        } });
       }, error: e => this.erro.set(AuthService.mensagemErro(e)) });
   }
   tituloPerfil(perfil: Perfil): string {
@@ -352,7 +361,8 @@ export class ContaComponent implements OnInit {
     this.erro.set(''); this.errosCampos.set({}); this.mensagem.set(''); this.salvando.set(true);
     this.auth.atualizarPerfil(this.nome, this.telefone.trim() || null)
       .pipe(finalize(() => this.salvando.set(false))).subscribe({
-        next: u => { this.usuario.set(u); this.nome = u.nome; this.telefone = u.telefoneContato ?? '';
+        next: u => { this.fotoFalhou.set(false); this.usuario.set(u);
+          this.nome = u.nome; this.telefone = u.telefoneContato ?? '';
           this.mensagem.set('Dados atualizados com sucesso.'); },
         error: e => {
           this.erro.set(AuthService.mensagemErro(e));

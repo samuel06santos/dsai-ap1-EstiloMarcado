@@ -5,6 +5,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import br.ufpa.dsai.estilomarcado.autenticacao.api.dto.AtualizarPerfilRequest;
 import br.ufpa.dsai.estilomarcado.autenticacao.api.dto.MeuPerfilResponse;
+import br.ufpa.dsai.estilomarcado.autenticacao.model.Usuario;
 import br.ufpa.dsai.estilomarcado.autenticacao.repository.UsuarioRepository;
 import br.ufpa.dsai.estilomarcado.autenticacao.security.UsuarioAtual;
 import br.ufpa.dsai.estilomarcado.catalogo.api.exception.RecursoNaoEncontradoException;
@@ -14,16 +15,19 @@ public class PerfilService {
 
     private final UsuarioRepository repository;
     private final UsuarioAtual usuarioAtual;
+    private final GoogleAvatarService avatar;
 
-    public PerfilService(UsuarioRepository repository, UsuarioAtual usuarioAtual) {
+    public PerfilService(UsuarioRepository repository, UsuarioAtual usuarioAtual, GoogleAvatarService avatar) {
         this.repository = repository;
         this.usuarioAtual = usuarioAtual;
+        this.avatar = avatar;
     }
 
     @Transactional(readOnly = true)
     public MeuPerfilResponse consultar() {
         Long id = usuarioAtual.get().id();
-        return repository.findById(id).map(MeuPerfilResponse::from)
+        return repository.findById(id).map(usuario ->
+                MeuPerfilResponse.from(usuario, avatar.fotoDoUsuario(usuario)))
                 .orElseThrow(() -> new RecursoNaoEncontradoException("usuario nao encontrado"));
     }
 
@@ -36,7 +40,8 @@ public class PerfilService {
         if (request.telefoneInformado()) {
             usuario.setTelefoneContato(normalizarTelefone(request.telefoneContato()));
         }
-        return MeuPerfilResponse.from(repository.save(usuario));
+        Usuario salvo = repository.save(usuario);
+        return MeuPerfilResponse.from(salvo, avatar.fotoDoUsuario(salvo));
     }
 
     private String normalizarTelefone(String valor) {

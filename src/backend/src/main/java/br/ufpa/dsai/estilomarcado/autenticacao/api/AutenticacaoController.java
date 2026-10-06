@@ -35,6 +35,7 @@ import br.ufpa.dsai.estilomarcado.autenticacao.service.LimiteRequisicoesService;
 import br.ufpa.dsai.estilomarcado.autenticacao.service.NormalizadorEmail;
 import br.ufpa.dsai.estilomarcado.autenticacao.service.AuditoriaService;
 import br.ufpa.dsai.estilomarcado.autenticacao.service.FirebaseIdentityService;
+import br.ufpa.dsai.estilomarcado.autenticacao.service.GoogleAvatarService;
 import br.ufpa.dsai.estilomarcado.autenticacao.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Value;
 import com.google.firebase.auth.FirebaseAuthException;
@@ -59,6 +60,7 @@ public class AutenticacaoController {
     private final UsuarioAtual usuarioAtual;
     private final AuditoriaService auditoria;
     private final FirebaseIdentityService firebase;
+    private final GoogleAvatarService avatar;
     private final UsuarioRepository users;
     private final String projectId;
     private final String webApiKey;
@@ -72,6 +74,7 @@ public class AutenticacaoController {
                                   UsuarioAtual usuarioAtual,
                                   AuditoriaService auditoria,
                                   FirebaseIdentityService firebase,
+                                  GoogleAvatarService avatar,
                                   UsuarioRepository users,
                                   @Value("${app.auth.firebase.project-id:}") String projectId,
                                   @Value("${app.auth.firebase.web-api-key:}") String webApiKey,
@@ -84,6 +87,7 @@ public class AutenticacaoController {
         this.usuarioAtual = usuarioAtual;
         this.auditoria = auditoria;
         this.firebase = firebase;
+        this.avatar = avatar;
         this.users = users;
         this.projectId = projectId;
         this.webApiKey = webApiKey;
@@ -179,7 +183,7 @@ public class AutenticacaoController {
             sessao.setAttribute(FirebaseSessionValidationFilter.CHECKED_AT, Instant.now());
         }
         contextRepository.saveContext(contexto, servletRequest, servletResponse);
-        return SessaoResponse.from(principal);
+        return SessaoResponse.from(principal, avatar.fotoDoUsuario(principal.id()));
     }
 
     @PostMapping("/contas/google")
@@ -222,7 +226,8 @@ public class AutenticacaoController {
 
     @GetMapping("/sessao")
     public SessaoResponse sessao() {
-        return SessaoResponse.from(usuarioAtual.get());
+        var principal = usuarioAtual.get();
+        return SessaoResponse.from(principal, avatar.fotoDoUsuario(principal.id()));
     }
 
     @DeleteMapping("/sessao")

@@ -49,7 +49,7 @@ app-icon { display: inline-flex; align-items: center; flex: 0 0 auto; }
   padding: .32rem .55rem .32rem .35rem; border: 1px solid var(--line); border-radius: 999px;
   background: var(--surface); color: var(--ink); font-weight: 700; transition: .18s ease;
 }
-.avatar-trigger img { width: 36px; height: 36px; border-radius: 50%; }
+.avatar-trigger img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
 .avatar-trigger .ui-icon { width: 15px; color: var(--muted); }
 .account-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .avatar-trigger:hover, .avatar-trigger[aria-expanded="true"] {
@@ -206,7 +206,7 @@ textarea { min-height: 6rem; resize: vertical; }
 .profile-grid { display: grid; grid-template-columns: minmax(220px, 290px) minmax(0, 1fr); gap: 1.2rem; align-items: start; }
 .profile-identity { text-align: center; }
 .profile-avatar { width: 100px; height: 100px; margin: .4rem auto 1rem; }
-.profile-avatar img { width: 100%; height: 100%; }
+.profile-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 .profile-identity h2 { margin: .3rem 0 .7rem; font: 700 1.7rem 'Playfair Display', serif; overflow-wrap: anywhere; }
 .profile-identity .badge { margin: 0 auto; }
 .profile-identity p { color: var(--muted); font-size: .84rem; line-height: 1.5; margin-top: 1.2rem; }

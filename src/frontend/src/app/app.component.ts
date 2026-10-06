@@ -42,7 +42,9 @@ interface NavItem {
           <button #accountTrigger class="avatar-trigger" type="button"
             aria-label="Abrir menu do usuário" aria-haspopup="menu"
             [attr.aria-expanded]="menuAberto()" (click)="alternarMenu()">
-            <img src="/avatar.svg" alt="" width="36" height="36">
+            <img [src]="sessao.fotoPerfilUrl && !fotoFalhou() ? sessao.fotoPerfilUrl : '/avatar.svg'"
+              (error)="fotoFalhou.set(true)" referrerpolicy="no-referrer"
+              alt="" width="36" height="36">
             <span class="account-name">{{ sessao.nome }}</span>
             <app-icon name="chevron" />
           </button>
@@ -127,6 +129,7 @@ export class AppComponent implements OnInit {
   @ViewChild('accountTrigger') private accountTrigger?: ElementRef<HTMLButtonElement>;
 
   readonly menuAberto = signal(false);
+  readonly fotoFalhou = signal(false);
   readonly sidebarAberta = signal(false);
   readonly saindo = signal(false);
   readonly erroSaida = signal('');
@@ -183,6 +186,10 @@ export class AppComponent implements OnInit {
   });
 
   constructor() {
+    effect(() => {
+      this.auth.sessao();
+      this.fotoFalhou.set(false);
+    });
     effect(onCleanup => {
       const sessao = this.auth.sessao();
       this.urlAtual();

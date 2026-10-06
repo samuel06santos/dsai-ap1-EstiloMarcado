@@ -9,10 +9,11 @@ public record SessaoResponse(
         String email,
         PerfilUsuario perfil,
         Long unidadeId,
-        Long profissionalId) {
+        Long profissionalId,
+        String fotoPerfilUrl) {
 
-    public static SessaoResponse from(UsuarioPrincipal principal) {
+    public static SessaoResponse from(UsuarioPrincipal principal, String fotoPerfilUrl) {
         return new SessaoResponse(principal.id(), principal.nome(), principal.email(), principal.perfil(),
-                principal.unidadeId(), principal.profissionalId());
+                principal.unidadeId(), principal.profissionalId(), fotoPerfilUrl);
     }
 }
