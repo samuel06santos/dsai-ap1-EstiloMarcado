@@ -46,7 +46,8 @@ BEGIN;
 -- ----------------------------------------------------------------------------
 INSERT INTO estabelecimento (id, nome) VALUES
     (1000, 'Estilo Marcado (Mock)'),
-    (1001, 'Studio Bella (Mock)')
+    (1001, 'Studio Bella (Mock)'),
+    (1002, 'Belle Hair (Mock)')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO unidade (id, nome, nome_normalizado, estabelecimento_id, principal,
@@ -58,7 +59,27 @@ INSERT INTO unidade (id, nome, nome_normalizado, estabelecimento_id, principal,
     (1002, 'Unidade Nazare', 'unidade nazare', 1001, TRUE,
      'Tv. Quintino Bocaiuva, 780 - Belem/PA', '(91) 3223-3000', 'America/Sao_Paulo', TRUE),
     (1003, 'Unidade Umarizal', 'unidade umarizal', 1001, FALSE,
-     'Rua Domingos Marreiros, 1500 - Belem/PA', '(91) 3223-4000', 'America/Sao_Paulo', TRUE)
+     'Rua Domingos Marreiros, 1500 - Belem/PA', '(91) 3223-4000', 'America/Sao_Paulo', TRUE),
+    (1004, 'Unidade Guama', 'unidade guama', 1000, FALSE,
+     'Av. Perimetral, 900 - Belem/PA', '(91) 3224-5000', 'America/Sao_Paulo', TRUE),
+    (1005, 'Unidade Marco', 'unidade marco', 1000, FALSE,
+     'Av. Alcindo Cacela, 2200 - Belem/PA', '(91) 3224-6000', 'America/Sao_Paulo', TRUE),
+    (1006, 'Unidade Icoaraci', 'unidade icoaraci', 1000, FALSE,
+     'Rod. Augusto Montenegro, 4300 - Belem/PA', '(91) 3224-7000', 'America/Sao_Paulo', TRUE),
+    (1007, 'Unidade Outeiro', 'unidade outeiro', 1000, FALSE,
+     'Estrada do Outeiro, 500 - Belem/PA', '(91) 3224-8000', 'America/Sao_Paulo', TRUE),
+    (1008, 'Unidade Pedreira', 'unidade pedreira', 1001, FALSE,
+     'Av. Pedro Miranda, 1200 - Belem/PA', '(91) 3225-5000', 'America/Sao_Paulo', TRUE),
+    (1009, 'Unidade Sacramenta', 'unidade sacramenta', 1001, FALSE,
+     'Av. Senador Lemos, 3000 - Belem/PA', '(91) 3225-6000', 'America/Sao_Paulo', TRUE),
+    (1010, 'Unidade Canudos', 'unidade canudos', 1001, FALSE,
+     'Av. Independencia, 800 - Belem/PA', '(91) 3225-7000', 'America/Sao_Paulo', TRUE),
+    (1011, 'Unidade Ananindeua', 'unidade ananindeua', 1002, TRUE,
+     'BR-316, km 8, 1500 - Ananindeua/PA', '(91) 3226-5000', 'America/Sao_Paulo', TRUE),
+    (1012, 'Unidade Castanhal', 'unidade castanhal', 1002, FALSE,
+     'Av. Barao do Rio Branco, 1100 - Castanhal/PA', '(91) 3226-6000', 'America/Sao_Paulo', TRUE),
+    (1013, 'Unidade Marituba', 'unidade marituba', 1002, FALSE,
+     'Rod. BR-316, km 12, 200 - Marituba/PA', '(91) 3226-7000', 'America/Sao_Paulo', TRUE)
 ON CONFLICT DO NOTHING;
 
 -- ----------------------------------------------------------------------------
@@ -72,7 +93,17 @@ INSERT INTO profissional (id, nome, ativo, unidade_id, apresentacao) VALUES
     (1004, 'Fernanda Alves', TRUE, 1002, 'Cabeleireira e colorista.'),
     (1005, 'Rafael Nunes', TRUE, 1002, 'Barbeiro e especialista em barba.'),
     (1006, 'Patricia Gomes', TRUE, 1003, 'Manicure e cabeleireira.'),
-    (1007, 'Lucas Barros', TRUE, 1003, 'Barbeiro e terapeuta capilar.')
+    (1007, 'Lucas Barros', TRUE, 1003, 'Barbeiro e terapeuta capilar.'),
+    (1008, 'Renata Dias', TRUE, 1004, 'Cabeleireira e escovista.'),
+    (1009, 'Bruno Carvalho', TRUE, 1005, 'Barbeiro e especialista em barba.'),
+    (1010, 'Camila Fontes', TRUE, 1006, 'Cabeleireira e manicure.'),
+    (1011, 'Thiago Moraes', TRUE, 1007, 'Barbeiro e terapeuta capilar.'),
+    (1012, 'Larissa Pinto', TRUE, 1008, 'Colorista e cabeleireira.'),
+    (1013, 'Gustavo Reis', TRUE, 1009, 'Barbeiro e designer de sobrancelha.'),
+    (1014, 'Aline Barbosa', TRUE, 1010, 'Manicure e pedicure.'),
+    (1015, 'Marcelo Tavares', TRUE, 1011, 'Barbeiro e especialista em barba.'),
+    (1016, 'Sofia Ribeiro', TRUE, 1012, 'Cabeleireira e manicure.'),
+    (1017, 'Vitor Hugo', TRUE, 1013, 'Barbeiro e colorista.')
 ON CONFLICT DO NOTHING;
 
 -- ----------------------------------------------------------------------------
@@ -92,14 +123,39 @@ INSERT INTO servico (id, unidade_id, nome, descricao, duracao_minutos, preco,
     (1022, 1002, 'Barba', 'Aparo e modelagem de barba com toalha quente.', 30, 35.00, 10, TRUE),
     (1023, 1003, 'Corte Masculino', 'Corte masculino com finalizacao.', 30, 45.00, 10, TRUE),
     (1024, 1003, 'Manicure', 'Cuidado completo das unhas das maos.', 45, 50.00, 10, TRUE),
-    (1025, 1003, 'Hidratacao', 'Hidratacao profunda dos fios.', 40, 70.00, 10, TRUE)
+    (1025, 1003, 'Hidratacao', 'Hidratacao profunda dos fios.', 40, 70.00, 10, TRUE),
+    (1100, 1004, 'Corte Masculino', 'Corte masculino com finalizacao.', 30, 45.00, 10, TRUE),
+    (1101, 1004, 'Corte Feminino', 'Corte feminino com lavagem e escova.', 60, 85.00, 10, TRUE),
+    (1102, 1005, 'Corte Masculino', 'Corte masculino com finalizacao.', 30, 45.00, 10, TRUE),
+    (1103, 1005, 'Barba', 'Aparo e modelagem de barba com toalha quente.', 30, 35.00, 10, TRUE),
+    (1104, 1006, 'Corte Feminino', 'Corte feminino com lavagem e escova.', 60, 85.00, 10, TRUE),
+    (1105, 1006, 'Manicure', 'Cuidado completo das unhas das maos.', 45, 50.00, 10, TRUE),
+    (1106, 1007, 'Corte Masculino', 'Corte masculino com finalizacao.', 30, 45.00, 10, TRUE),
+    (1107, 1007, 'Hidratacao', 'Hidratacao profunda dos fios.', 40, 70.00, 10, TRUE),
+    (1108, 1008, 'Corte Masculino', 'Corte masculino com finalizacao.', 30, 45.00, 10, TRUE),
+    (1109, 1008, 'Coloracao', 'Coloracao completa com tratamento.', 120, 180.00, 15, TRUE),
+    (1110, 1009, 'Corte Feminino', 'Corte feminino com lavagem e escova.', 60, 85.00, 10, TRUE),
+    (1111, 1009, 'Manicure', 'Cuidado completo das unhas das maos.', 45, 50.00, 10, TRUE),
+    (1112, 1010, 'Barba', 'Aparo e modelagem de barba com toalha quente.', 30, 35.00, 10, TRUE),
+    (1113, 1010, 'Hidratacao', 'Hidratacao profunda dos fios.', 40, 70.00, 10, TRUE),
+    (1114, 1011, 'Corte Masculino', 'Corte masculino com finalizacao.', 30, 45.00, 10, TRUE),
+    (1115, 1011, 'Corte Feminino', 'Corte feminino com lavagem e escova.', 60, 85.00, 10, TRUE),
+    (1116, 1012, 'Manicure', 'Cuidado completo das unhas das maos.', 45, 50.00, 10, TRUE),
+    (1117, 1012, 'Hidratacao', 'Hidratacao profunda dos fios.', 40, 70.00, 10, TRUE),
+    (1118, 1013, 'Corte Masculino', 'Corte masculino com finalizacao.', 30, 45.00, 10, TRUE),
+    (1119, 1013, 'Coloracao', 'Coloracao completa com tratamento.', 120, 180.00, 15, TRUE)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO servico_profissional (servico_id, profissional_id) VALUES
     (1000, 1000), (1000, 1001), (1001, 1000), (1002, 1001), (1003, 1000),
     (1004, 1002), (1004, 1003), (1005, 1002), (1006, 1002), (1006, 1003),
     (1020, 1004), (1020, 1005), (1021, 1004), (1022, 1005),
-    (1023, 1006), (1023, 1007), (1024, 1006), (1025, 1006), (1025, 1007)
+    (1023, 1006), (1023, 1007), (1024, 1006), (1025, 1006), (1025, 1007),
+    (1100, 1008), (1101, 1008), (1102, 1009), (1103, 1009),
+    (1104, 1010), (1105, 1010), (1106, 1011), (1107, 1011),
+    (1108, 1012), (1109, 1012), (1110, 1013), (1111, 1013),
+    (1112, 1014), (1113, 1014), (1114, 1015), (1115, 1015),
+    (1116, 1016), (1117, 1016), (1118, 1017), (1119, 1017)
 ON CONFLICT DO NOTHING;
 
 -- ----------------------------------------------------------------------------
@@ -235,6 +291,27 @@ WHERE NOT EXISTS (
       AND j.dia_semana = v.dia_semana
       AND j.hora_inicio = v.hora_inicio
       AND j.hora_fim = v.hora_fim
+);
+
+-- Jornada padrao dos profissionais das novas filiais (1008-1017):
+-- segunda a sexta, 09:00-12:00 e 13:00-18:00.
+INSERT INTO jornada_intervalo (profissional_id, dia_semana, hora_inicio, hora_fim)
+SELECT p.id, j.dia_semana, j.hora_inicio, j.hora_fim
+FROM (VALUES (1008), (1009), (1010), (1011), (1012),
+             (1013), (1014), (1015), (1016), (1017)) AS p(id)
+CROSS JOIN (VALUES
+    (1, TIME '09:00', TIME '12:00'), (1, TIME '13:00', TIME '18:00'),
+    (2, TIME '09:00', TIME '12:00'), (2, TIME '13:00', TIME '18:00'),
+    (3, TIME '09:00', TIME '12:00'), (3, TIME '13:00', TIME '18:00'),
+    (4, TIME '09:00', TIME '12:00'), (4, TIME '13:00', TIME '18:00'),
+    (5, TIME '09:00', TIME '12:00'), (5, TIME '13:00', TIME '18:00')
+) AS j(dia_semana, hora_inicio, hora_fim)
+WHERE NOT EXISTS (
+    SELECT 1 FROM jornada_intervalo j2
+    WHERE j2.profissional_id = p.id
+      AND j2.dia_semana = j.dia_semana
+      AND j2.hora_inicio = j.hora_inicio
+      AND j2.hora_fim = j.hora_fim
 );
 
 -- ----------------------------------------------------------------------------
