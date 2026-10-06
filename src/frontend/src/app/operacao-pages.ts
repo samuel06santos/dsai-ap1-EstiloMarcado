@@ -11,6 +11,8 @@ import { FiltroAtivo, classificarLista, orientacaoVazia, parametrosFiltrosUrl }
 import { EstabelecimentoService, HorarioDisponivel, Profissional, ServicoPublico } from './estabelecimento.service';
 import { formatarFuso } from './fuso-apresentacao';
 import { NotificacoesEstadoService } from './notificacoes-estado.service';
+import { destinoNotificacao, ordenarNotificacoes, resumoNotificacao, tituloNotificacao }
+  from './notificacoes-apresentacao';
 
 interface Solicitacao { id: number; unidadeId: number; servicoId: number; profissionalId: number | null;
   dataInicio: string; dataFim: string; horaInicio: string | null; horaFim: string | null;
@@ -392,6 +394,8 @@ export class ListaEsperaComponent {
 export class NotificacoesComponent {
   readonly instanteLocal = instanteLocal;
   readonly vazio = () => orientacaoVazia('notificacoes');
+  readonly titulo = tituloNotificacao;
+  readonly resumo = resumoNotificacao;
   private readonly api = inject(OperacaoApi);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
@@ -430,8 +434,7 @@ export class NotificacoesComponent {
     this.api.notificacoes().subscribe({
       next: itens => {
         if (this.usuarioId() !== usuarioId) { return; }
-        this.itens.set([...itens].sort((a, b) =>
-          Date.parse(b.criadoEm) - Date.parse(a.criadoEm) || b.id - a.id));
+        this.itens.set(ordenarNotificacoes(itens));
         this.carregandoLista.set(false);
       },
       error: () => {
@@ -465,31 +468,22 @@ export class NotificacoesComponent {
       }
     });
   }
-  titulo(item: Notificacao): string {
-    return { CRIACAO: 'Agendamento criado', CONFIRMACAO: 'Agendamento confirmado',
-      CANCELAMENTO: 'Agendamento cancelado', REAGENDAMENTO: 'Agendamento reagendado',
-      OFERTA: 'Vaga disponível' }[item.tipo] ?? 'Atualização da sua conta';
-  }
-  resumo(item: Notificacao): string {
-    if (item.referenciaTipo === 'AGENDAMENTO') { return 'Abra os detalhes do atendimento.'; }
-    if (item.referenciaTipo === 'OFERTA') { return 'Confira a oferta na sua lista de espera.'; }
-    return 'Veja as novidades da sua conta.';
-  }
   abrir(item: Notificacao): void {
     if (this.acaoEmCursoId() !== null) { return; }
     this.erroLeitura.set('');
     this.falhaAbertura.set(null);
-    if (!Number.isSafeInteger(item.referenciaId) || item.referenciaId <= 0) {
+    const destino = destinoNotificacao(item);
+    if (!destino) {
       this.mostrarDestinoGeral(item);
       return;
     }
     this.acaoEmCursoId.set(item.id);
-    if (item.referenciaTipo === 'AGENDAMENTO') {
+    if (destino.tipo === 'AGENDAMENTO') {
       const usuarioId = this.usuarioId();
       this.api.eventos(item.referenciaId).subscribe({
         next: () => {
           if (this.usuarioId() === usuarioId) {
-            this.lerENavegar(item, `/agendamentos/${item.referenciaId}/historico`);
+            this.lerENavegar(item, destino.url);
           }
         },
         error: () => {
@@ -499,11 +493,8 @@ export class NotificacoesComponent {
           }
         }
       });
-    } else if (item.referenciaTipo === 'OFERTA') {
-      this.lerENavegar(item, `/lista-espera?ofertaId=${item.referenciaId}`);
     } else {
-      this.acaoEmCursoId.set(null);
-      this.mostrarDestinoGeral(item);
+      this.lerENavegar(item, destino.url);
     }
   }
   ler(evento: Event, item: Notificacao): void {

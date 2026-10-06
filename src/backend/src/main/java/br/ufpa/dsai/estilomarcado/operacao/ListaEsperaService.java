@@ -223,7 +223,8 @@ public class ListaEsperaService {
                 + "where id=? and status='ENVIADA'", ofertaId);
     }
 
-    @Scheduled(fixedDelayString = "${app.lista-espera.intervalo-ms:300000}")
+    @Scheduled(fixedDelayString = "${app.lista-espera.intervalo-ms:300000}",
+            initialDelayString = "${app.lista-espera.atraso-inicial-ms:0}")
     @Transactional
     public void verificarOportunidades() {
         jdbc.update("update lista_espera_oferta set status='EXPIRADA' "

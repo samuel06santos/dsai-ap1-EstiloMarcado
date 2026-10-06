@@ -136,7 +136,8 @@ public class NotificacaoService {
         return p;
     }
 
-    @Scheduled(fixedDelayString = "${app.notificacoes.intervalo-ms:30000}")
+    @Scheduled(fixedDelayString = "${app.notificacoes.intervalo-ms:30000}",
+            initialDelayString = "${app.notificacoes.atraso-inicial-ms:0}")
     public void processar() {
         for (int i = 0; i < 20; i++) {
             Trabalho trabalho = transacoes.execute(status -> reservarProximo());

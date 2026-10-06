@@ -497,16 +497,29 @@ Passo a passo completo em [`deploy/README.md`](deploy/README.md).
 
 ## 11. Testes e qualidade
 
-- **19 classes de teste** de backend em `src/backend/src/test/java/...`
+- **20 classes de teste** de backend em `tests/backend/br/ufpa/dsai/estilomarcado/...`
   cobrindo autenticação, estabelecimento/filiais, catálogo, disponibilidade,
   motor de horários, agendamento, painel do cliente, painel profissional,
-  operação (lista de espera/notificações/relatórios), migrações e CSRF.
+  operação (lista de espera/notificações/relatórios), migrações e CSRF. O Maven
+  usa esse diretório como fonte de testes.
 - Testes de integração usam **PostgreSQL real via Testcontainers** — inclusive
   para validar concorrência e a constraint `EXCLUDE`.
 - Testes de migração verificam os estados intermediários do Flyway.
-- O frontend ainda **não possui testes automatizados** (a suíte Playwright está
-  prevista, mas não implementada).
+- **6 arquivos de teste** do frontend em `tests/frontend/`, executados por
+  `npm test`, cobrem datas, fusos, filtros, rascunho de agendamento,
+  divisão de consultas da agenda e destinos seguros de notificações.
 - TypeScript em modo `strict` e templates Angular com `strictTemplates`.
+
+Execute da raiz do repositório:
+
+```powershell
+mvn -f src/backend/pom.xml test   # JDK 21, Maven 3.9+ e Docker disponíveis
+npm --prefix src/frontend test
+npm --prefix src/frontend run build
+```
+
+As instruções e os pré-requisitos das duas suítes estão em
+[`tests/README.md`](tests/README.md).
 
 ## 12. Como rodar (desenvolvimento)
 
@@ -602,6 +615,7 @@ docker compose --env-file deploy/.env.production -f docker-compose.prod.yml up -
 ├── prompts/sessoes/     # exportação bruta das sessões de IA
 ├── scripts/             # seed.ps1, seed.sh e seed.sql
 ├── SPEC/                # especificações datadas (fonte da verdade)
+├── tests/               # suítes do backend e do frontend
 ├── src/
 │   ├── backend/         # API Java/Spring Boot + migrações Flyway + testes
 │   └── frontend/        # SPA Angular (standalone)
