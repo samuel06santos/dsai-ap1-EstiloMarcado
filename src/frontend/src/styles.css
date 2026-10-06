@@ -132,6 +132,23 @@ h3 { font-size: 1.05rem; }
 .section-title > app-icon .ui-icon { width: 23px; height: 23px; }
 .panel-icon { width: 44px; height: 44px; display: grid; place-items: center; border-radius: .85rem; background: var(--soft); color: var(--wine); margin-bottom: 1.15rem; }
 .overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.2rem; }
+.client-dashboard-heading { display: flex; align-items: end; justify-content: space-between; gap: 1.25rem; flex-wrap: wrap; }
+.client-dashboard-heading > div { min-width: 0; }
+.client-dashboard-heading h1 { font-size: clamp(1.9rem, 2.8vw, 2.75rem); }
+.client-dashboard-heading p:last-child { margin: 0; color: var(--muted); line-height: 1.5; }
+.client-create-action { flex: 0 0 auto; min-height: 52px; padding-inline: 1.4rem; font-size: 1rem; white-space: nowrap; }
+.client-create-action span { font-size: 1.45rem; line-height: 0; font-weight: 500; }
+.client-dashboard-error p { margin: 0; }
+.client-dashboard-error .button { margin-top: .9rem; }
+.client-summary-section h2 { margin: 0; font: 700 clamp(1.4rem, 2vw, 1.8rem) 'Playfair Display', serif; }
+.client-summary-section > .muted-copy { margin: .35rem 0 1rem; }
+.client-summary-grid { display: flex; flex-wrap: wrap; justify-content: center; align-items: stretch; gap: 1rem; }
+.client-summary-card { flex: 1 1 190px; max-width: 380px; min-width: 0; min-height: 152px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .65rem; text-align: center; }
+.client-summary-card h3 { margin: 0; color: var(--muted); font-size: .92rem; font-weight: 700; line-height: 1.35; }
+.client-summary-value { color: var(--wine-dark); font: 700 clamp(2.5rem, 4vw, 3.4rem)/1 'Playfair Display', serif; }
+.client-loading-appointment { min-height: 210px; background: linear-gradient(115deg, #fff, var(--soft)); }
+.client-summary-placeholder { background: linear-gradient(115deg, #fff, var(--soft)); }
 .summary-card h2 { font: 700 clamp(1.45rem, 2vw, 1.9rem) 'Playfair Display', serif; margin: .2rem 0 .9rem; }
 .text-link { display: inline-flex; align-items: center; gap: .4rem; font-weight: 700; margin-top: 1rem; }
 .text-link .ui-icon { width: 17px; }
@@ -268,6 +285,8 @@ textarea { min-height: 6rem; resize: vertical; }
   .form-grid, .affiliation-grid, .inline-form { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
+  .client-dashboard-heading { align-items: stretch; }
+  .client-create-action { width: 100%; }
   .public-footer-inner { grid-template-columns: 1fr; }
   .account-name { display: none; }
   .avatar-trigger { gap: .15rem; }

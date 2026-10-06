@@ -23,15 +23,32 @@ function diaNoFuso(fuso: string): string {
   imports: [CommonModule, FormsModule, RouterLink, UiIconComponent, EstadoListaComponent],
   template: `
     <section class="page-stack">
-      <div class="page-heading"><p class="eyebrow">Área do cliente</p>
-        <h1>{{ painel()?.cliente?.nome ? 'Olá, ' + painel()!.cliente.nome : 'Seu painel' }}</h1>
-        <p>Seu próximo horário, seu histórico e os atalhos da sua conta.</p></div>
+      <div class="page-heading client-dashboard-heading">
+        <div><p class="eyebrow">Área do cliente</p>
+          <h1>{{ painel()?.cliente?.nome ? 'Olá, ' + painel()!.cliente.nome : 'Seu painel' }}</h1>
+          <p>Seu próximo horário e sua trajetória em um só lugar.</p></div>
+        <a class="button primary client-create-action" routerLink="/filiais"
+          aria-label="Criar agendamento"><span aria-hidden="true">+</span> Criar agendamento</a>
+      </div>
 
-      @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
+      @if (erro()) {
+        <div class="notice error client-dashboard-error" role="alert">
+          <p>{{ erro() }}</p>
+          @if (!painel() && !carregando()) {
+            <button class="button ghost" type="button" (click)="carregar()">Tentar novamente</button>
+          }
+        </div>
+      }
       @if (mensagemSucesso()) { <p class="notice success" role="status">{{ mensagemSucesso() }}</p> }
 
       @if (carregando()) {
         <p class="loading-state" role="status">Carregando seu painel…</p>
+        <div class="surface-panel client-loading-appointment" aria-hidden="true"></div>
+        <div class="client-summary-grid" aria-hidden="true">
+          <div class="surface-panel client-summary-card client-summary-placeholder"></div>
+          <div class="surface-panel client-summary-card client-summary-placeholder"></div>
+          <div class="surface-panel client-summary-card client-summary-placeholder"></div>
+        </div>
       } @else if (painel(); as dados) {
         @if (!dados.cliente.telefoneContato) {
           <p class="notice">Cadastre um telefone no seu perfil para que a equipe consiga falar com você.
@@ -93,14 +110,24 @@ function diaNoFuso(fuso: string): string {
           </article>
         }
 
-        <article class="surface-panel section-card">
-          <h2>Resumo</h2>
-          <div class="overview-grid">
-            <p><strong>{{ dados.resumo.proximosAtivos }}</strong><br>Próximos atendimentos</p>
-            <p><strong>{{ dados.resumo.realizados }}</strong><br>Realizados</p>
-            <p><strong>{{ dados.resumo.cancelados }}</strong><br>Cancelados</p>
+        <section class="client-summary-section" aria-labelledby="client-summary-title">
+          <h2 id="client-summary-title">Resumo</h2>
+          <p class="muted-copy">Seus atendimentos em números.</p>
+          <div class="client-summary-grid">
+            <article class="surface-panel client-summary-card">
+              <h3>Próximos atendimentos</h3>
+              <strong class="client-summary-value">{{ dados.resumo.proximosAtivos }}</strong>
+            </article>
+            <article class="surface-panel client-summary-card">
+              <h3>Realizados</h3>
+              <strong class="client-summary-value">{{ dados.resumo.realizados }}</strong>
+            </article>
+            <article class="surface-panel client-summary-card">
+              <h3>Cancelados</h3>
+              <strong class="client-summary-value">{{ dados.resumo.cancelados }}</strong>
+            </article>
           </div>
-        </article>
+        </section>
 
         <article class="surface-panel section-card">
           <div class="section-title"><div><p class="eyebrow">Sua trajetória</p>
@@ -169,7 +196,8 @@ export class PainelClienteComponent implements OnInit {
     this.erro.set('');
     this.api.painel().subscribe({
       next: dados => { this.painel.set(dados); this.carregando.set(false); },
-      error: e => { this.erro.set(AuthService.mensagemErro(e)); this.carregando.set(false); }
+      error: e => { this.painel.set(null); this.erro.set(AuthService.mensagemErro(e));
+        this.carregando.set(false); }
     });
   }
 
