@@ -70,10 +70,23 @@ docker compose --env-file deploy/.env.production -f docker-compose.prod.yml \
 Ajuste `FRONTEND_BIND` no arquivo `.env.production` se a porta 8081 ja estiver
 em uso no servidor.
 
-### Primeiro administrador
+### Administrador configurado pelo ambiente
 
-Na primeira subida, defina `AUTH_BOOTSTRAP_ADMIN_ENABLED=true` no
-`.env.production` (com o e-mail desejado), recrie o backend e aguarde o convite:
+Defina `AUTH_BOOTSTRAP_ADMIN_ENABLED=true` e `AUTH_BOOTSTRAP_ADMIN_UNIT_ID` no
+`.env.production`. Mantenha `AUTH_BOOTSTRAP_ADMIN_EMAIL` para o administrador
+inicial e preencha `AUTH_ADDITIONAL_ADMIN_EMAIL` com o novo e-mail. O nome de
+uma conta nova pode ser definido em `AUTH_ADDITIONAL_ADMIN_NAME`. O perfil
+`ADMINISTRADOR` vale para essa unidade, conforme o modelo de permissoes do
+projeto. Use o ID de uma unidade existente; com `0`, o backend localiza ou
+cria a unidade pelo nome definido em `AUTH_BOOTSTRAP_ADMIN_UNIT_NAME`.
+
+Ao recriar o backend, uma conta nova recebe convite por e-mail. Uma conta de
+cliente ja ativa e com e-mail verificado no Firebase e promovida, mesmo que a
+unidade ja tenha outro administrador; as sessoes antigas sao encerradas. Uma
+conta pendente ou vinculada a outro perfil interno exige resolucao manual.
+Falhas no provisionamento sao registradas no backend sem interromper o login;
+confira os logs e o perfil da conta apos a subida. O processo e idempotente
+para o mesmo e-mail e unidade:
 
 ```bash
 docker compose --env-file deploy/.env.production -f docker-compose.prod.yml up -d backend

@@ -50,6 +50,8 @@ app:
       enabled: ${AUTH_BOOTSTRAP_ADMIN_ENABLED:false}
       nome: ${AUTH_BOOTSTRAP_ADMIN_NAME:Administrador}
       email: ${AUTH_BOOTSTRAP_ADMIN_EMAIL:}
+      email-adicional: ${AUTH_ADDITIONAL_ADMIN_EMAIL:}
+      nome-adicional: ${AUTH_ADDITIONAL_ADMIN_NAME:Administrador}
       unidade-id: ${AUTH_BOOTSTRAP_ADMIN_UNIT_ID:0}
       unidade-nome: ${AUTH_BOOTSTRAP_ADMIN_UNIT_NAME:Unidade Administrativa}
 

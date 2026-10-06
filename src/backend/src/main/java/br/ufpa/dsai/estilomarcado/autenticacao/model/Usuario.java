@@ -159,6 +159,7 @@ public class Usuario {
     public EstadoConta getEstado() { return estado; }
     public void setEstado(EstadoConta estado) { this.estado = estado; }
     public Unidade getUnidade() { return unidade; }
+    public void setUnidade(Unidade unidade) { this.unidade = unidade; }
     public Profissional getProfissional() { return profissional; }
     public void setProfissional(Profissional profissional) { this.profissional = profissional; }
     public int getTentativasLogin() { return tentativasLogin; }

@@ -99,7 +99,7 @@ enviado pelo navegador.
   recuperação) contra força bruta e abuso.
 - Auditoria de eventos de segurança (`LOGIN`, `LOGOUT`, `CADASTRO`,
   `REDEFINICAO_SENHA`, `CONVITE_ACEITO`, alterações de acesso, etc.).
-- Bootstrap opcional do primeiro administrador, sem senha fixa versionada.
+- Bootstrap opcional de administradores por e-mails configurados no ambiente, sem senha fixa versionada.
 
 ### 4.2 Estabelecimento, filiais, profissionais e catálogo
 

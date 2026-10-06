@@ -165,25 +165,96 @@ public class UsuarioInternoService {
 
     @Transactional
     public void provisionarPrimeiroAdministrador(Long unidadeId, String nome, String email) {
-        if (unidadeId == null || unidadeId <= 0 || email == null || email.isBlank()) {
+        if (unidadeId == null || unidadeId <= 0 || nome == null || nome.isBlank()
+                || email == null || email.isBlank()) {
             throw new IllegalArgumentException("bootstrap administrativo exige unidade e e-mail validos");
         }
         if (usuarioRepository.existsByUnidadeIdAndPerfil(unidadeId, PerfilUsuario.ADMINISTRADOR)) {
             return;
         }
-        String normalizado = NormalizadorEmail.normalizar(email);
-        if (usuarioRepository.existsByEmailNormalizado(normalizado)) {
+        if (usuarioRepository.existsByEmailNormalizado(NormalizadorEmail.normalizar(email))) {
             throw new ConflitoException("o e-mail do bootstrap ja pertence a outra conta");
         }
         Unidade unidade = unidadeRepository.findById(unidadeId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("unidade do bootstrap nao encontrada"));
+        criarAdministradorPendente(unidade, nome, email, "PRIMEIRO_ADMIN_PROVISIONADO");
+    }
+
+    @Transactional
+    public void garantirAdministradorConfigurado(Long unidadeId, String nome, String email) {
+        if (unidadeId == null || unidadeId <= 0 || nome == null || nome.isBlank()
+                || email == null || email.isBlank()) {
+            throw new IllegalArgumentException("bootstrap administrativo exige unidade e e-mail validos");
+        }
+        String normalizado = NormalizadorEmail.normalizar(email);
+        Unidade unidade = unidadeRepository.findById(unidadeId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("unidade do bootstrap nao encontrada"));
+        Usuario existente = usuarioRepository.findWithLockByEmailNormalizado(normalizado).orElse(null);
+        if (existente != null) {
+            if (existente.getPerfil() == PerfilUsuario.ADMINISTRADOR
+                    && existente.getUnidade() != null
+                    && existente.getUnidade().getId().equals(unidadeId)) {
+                return;
+            }
+            if (existente.getPerfil() != PerfilUsuario.CLIENTE
+                    || existente.getEstado() != EstadoConta.ATIVA) {
+                throw new ConflitoException(
+                        "o e-mail configurado precisa pertencer a um cliente ativo ou ao administrador desta unidade");
+            }
+            if (firebase.enabled() && !identidadeFirebaseVerificada(existente)) {
+                throw new ConflitoException("a conta configurada precisa ter e-mail verificado no Firebase");
+            }
+            existente.setPerfil(PerfilUsuario.ADMINISTRADOR);
+            existente.setUnidade(unidade);
+            sessaoService.invalidarTodas(normalizado);
+            auditoria.registrar(existente.getId(), "ADMIN_CONFIGURADO", true, "bootstrap",
+                    "unidade=" + unidadeId);
+            return;
+        }
+        if (firebase.enabled()) {
+            try {
+                var remoto = firebase.findByEmail(email.trim());
+                if (remoto != null) {
+                    if (remoto.isDisabled() || !remoto.isEmailVerified()
+                            || remoto.getEmail() == null
+                            || !normalizado.equals(NormalizadorEmail.normalizar(remoto.getEmail()))
+                            || usuarioRepository.existsByFirebaseUid(remoto.getUid())) {
+                        throw new ConflitoException(
+                                "a identidade Firebase configurada precisa estar ativa, verificada e sem vinculo local");
+                    }
+                    Usuario usuario = new Usuario(nome.trim(), email.trim(), normalizado, null,
+                            PerfilUsuario.ADMINISTRADOR, EstadoConta.ATIVA, unidade, null);
+                    usuario.setFirebaseUid(remoto.getUid());
+                    usuario = usuarioRepository.saveAndFlush(usuario);
+                    auditoria.registrar(usuario.getId(), "ADMIN_CONFIGURADO", true, "bootstrap",
+                            "unidade=" + unidadeId + ",firebase-existente");
+                    return;
+                }
+            } catch (FirebaseAuthException ex) { throw indisponivel(ex); }
+        }
+        criarAdministradorPendente(unidade, nome, email, "ADMIN_CONFIGURADO");
+    }
+
+    private void criarAdministradorPendente(Unidade unidade, String nome, String email, String evento) {
         Usuario usuario = usuarioRepository.saveAndFlush(new Usuario(
-                nome.trim(), email.trim(), normalizado, null, PerfilUsuario.ADMINISTRADOR,
+                nome.trim(), email.trim(), NormalizadorEmail.normalizar(email), null,
+                PerfilUsuario.ADMINISTRADOR,
                 EstadoConta.PENDENTE, unidade, null));
         provisionarFirebase(usuario);
         String token = tokenService.emitir(usuario, FinalidadeToken.CONVITE, VALIDADE_CONVITE);
         emailGateway.enviarConvite(usuario.getEmail(), usuario.getNome(), token);
-        auditoria.registrar(usuario.getId(), "PRIMEIRO_ADMIN_PROVISIONADO", true, "bootstrap", null);
+        auditoria.registrar(usuario.getId(), evento, true, "bootstrap",
+                "unidade=" + unidade.getId());
+    }
+
+    private boolean identidadeFirebaseVerificada(Usuario usuario) {
+        if (usuario.getFirebaseUid() == null) return false;
+        try {
+            var remoto = firebase.getUser(usuario.getFirebaseUid());
+            return remoto.isEmailVerified() && !remoto.isDisabled()
+                    && remoto.getEmail() != null
+                    && NormalizadorEmail.normalizar(remoto.getEmail()).equals(usuario.getEmailNormalizado());
+        } catch (FirebaseAuthException ex) { throw indisponivel(ex); }
     }
 
     @Transactional

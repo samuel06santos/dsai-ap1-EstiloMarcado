@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -46,6 +47,7 @@ import br.ufpa.dsai.estilomarcado.autenticacao.model.Usuario;
 import br.ufpa.dsai.estilomarcado.autenticacao.repository.UsuarioRepository;
 import br.ufpa.dsai.estilomarcado.autenticacao.service.EmailAutenticacaoGateway;
 import br.ufpa.dsai.estilomarcado.autenticacao.service.UsuarioInternoService;
+import br.ufpa.dsai.estilomarcado.catalogo.api.exception.ConflitoException;
 import br.ufpa.dsai.estilomarcado.catalogo.model.Profissional;
 import br.ufpa.dsai.estilomarcado.catalogo.model.Unidade;
 import br.ufpa.dsai.estilomarcado.catalogo.repository.ProfissionalRepository;
@@ -144,6 +146,71 @@ class AutenticacaoIntegrationTest {
         assertEquals(primeira, segunda);
         assertEquals(1, usuarioRepository.count());
         verifyNoInteractions(emailGateway);
+    }
+
+    @Test
+    void bootstrapPromoveClienteAtivoMesmoComOutroAdministradorEEncerraSessaoAntiga() throws Exception {
+        Usuario cliente = clienteAtivo("meu.email@example.com", "Senha123");
+        Cookie sessao = login("meu.email@example.com", "Senha123")
+                .andExpect(status().isOk()).andReturn().getResponse().getCookie("SESSION");
+        assertNotNull(sessao);
+        usuarioRepository.save(new Usuario("Outro administrador", "outro@example.com",
+                "outro@example.com", passwordEncoder.encode("Senha123"),
+                PerfilUsuario.ADMINISTRADOR, EstadoConta.ATIVA, unidade, null));
+
+        usuarioInternoService.garantirAdministradorConfigurado(unidade.getId(),
+                "Nome no ambiente", " MEU.EMAIL@example.com ");
+
+        Usuario promovido = usuarioRepository.findById(cliente.getId()).orElseThrow();
+        assertEquals(PerfilUsuario.ADMINISTRADOR, promovido.getPerfil());
+        assertEquals(unidade.getId(), promovido.getUnidade().getId());
+        assertEquals(EstadoConta.ATIVA, promovido.getEstado());
+        mockMvc.perform(get("/api/autenticacao/sessao").cookie(sessao))
+                .andExpect(status().isUnauthorized());
+        login("meu.email@example.com", "Senha123")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.perfil", is("ADMINISTRADOR")));
+    }
+
+    @Test
+    void bootstrapCriaAdministradorAdicionalPendenteERepeticaoNaoDuplicaConvite() {
+        usuarioRepository.save(new Usuario("Outro administrador", "outro@example.com",
+                "outro@example.com", passwordEncoder.encode("Senha123"),
+                PerfilUsuario.ADMINISTRADOR, EstadoConta.ATIVA, unidade, null));
+
+        usuarioInternoService.garantirAdministradorConfigurado(unidade.getId(),
+                "Administrador configurado", "novo@example.com");
+        Usuario novo = usuarioRepository.findByEmailNormalizado("novo@example.com").orElseThrow();
+        assertEquals(PerfilUsuario.ADMINISTRADOR, novo.getPerfil());
+        assertEquals(EstadoConta.PENDENTE, novo.getEstado());
+        assertEquals(unidade.getId(), novo.getUnidade().getId());
+        verify(emailGateway).enviarConvite(eq("novo@example.com"),
+                eq("Administrador configurado"), anyString());
+
+        usuarioInternoService.garantirAdministradorConfigurado(unidade.getId(),
+                "Administrador configurado", "novo@example.com");
+        assertEquals(2, usuarioRepository.count());
+        verify(emailGateway).enviarConvite(eq("novo@example.com"),
+                eq("Administrador configurado"), anyString());
+    }
+
+    @Test
+    void bootstrapNaoPromoveContaPendenteOuOutroPerfilInterno() {
+        Usuario pendente = usuarioRepository.save(new Usuario("Cliente", "pendente@example.com",
+                "pendente@example.com", null, PerfilUsuario.CLIENTE,
+                EstadoConta.PENDENTE, null, null));
+        Usuario recepcao = usuarioRepository.save(new Usuario("Recepção", "equipe@example.com",
+                "equipe@example.com", null, PerfilUsuario.RECEPCAO,
+                EstadoConta.ATIVA, unidade, null));
+
+        assertThrows(ConflitoException.class, () -> usuarioInternoService
+                .garantirAdministradorConfigurado(unidade.getId(), "Cliente", "pendente@example.com"));
+        assertThrows(ConflitoException.class, () -> usuarioInternoService
+                .garantirAdministradorConfigurado(unidade.getId(), "Recepção", "equipe@example.com"));
+        assertEquals(PerfilUsuario.CLIENTE,
+                usuarioRepository.findById(pendente.getId()).orElseThrow().getPerfil());
+        assertEquals(PerfilUsuario.RECEPCAO,
+                usuarioRepository.findById(recepcao.getId()).orElseThrow().getPerfil());
     }
 
     @Test
