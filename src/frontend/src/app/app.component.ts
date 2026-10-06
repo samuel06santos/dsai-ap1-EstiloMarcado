@@ -23,7 +23,7 @@ interface NavItem {
     <header class="app-header">
       <div class="header-leading">
         @if (auth.sessao() && !paginaPublica()) {
-          <button class="icon-button mobile-menu" type="button" (click)="alternarSidebar()"
+          <button #sidebarTrigger class="icon-button mobile-menu" type="button" (click)="alternarSidebar()"
             [attr.aria-label]="sidebarAberta() ? 'Fechar menu' : 'Abrir menu'"
             [attr.aria-expanded]="sidebarAberta()" aria-controls="app-sidebar">
             <app-icon [name]="sidebarAberta() ? 'close' : 'menu'" />
@@ -71,7 +71,7 @@ interface NavItem {
       <div class="app-layout">
         @if (sidebarAberta()) {
           <button type="button" class="sidebar-scrim" aria-label="Fechar menu"
-            (click)="sidebarAberta.set(false)"></button>
+            (click)="fecharSidebar()"></button>
         }
         <aside id="app-sidebar" class="app-sidebar" [class.is-open]="sidebarAberta()">
           <div class="sidebar-intro">
@@ -82,7 +82,7 @@ interface NavItem {
             @for (item of itens(); track item.texto) {
               <a [routerLink]="item.destino" [fragment]="item.fragmento"
                 [class.is-active]="ativo(item)" [attr.aria-current]="ativo(item) ? 'page' : null"
-                (click)="sidebarAberta.set(false)">
+                (click)="fecharSidebar()">
                 <app-icon [name]="item.icone" /><span>{{ item.texto }}</span>
               </a>
             }
@@ -127,6 +127,7 @@ export class AppComponent implements OnInit {
   private readonly estabelecimento = inject(EstabelecimentoService);
   @ViewChild('accountArea') private accountArea?: ElementRef<HTMLElement>;
   @ViewChild('accountTrigger') private accountTrigger?: ElementRef<HTMLButtonElement>;
+  @ViewChild('sidebarTrigger') private sidebarTrigger?: ElementRef<HTMLButtonElement>;
 
   readonly menuAberto = signal(false);
   readonly fotoFalhou = signal(false);
@@ -136,10 +137,14 @@ export class AppComponent implements OnInit {
   readonly naoLidas = signal(0);
   readonly urlAtual = signal(this.router.url);
   readonly adminPrincipal = signal(false);
-  readonly filialSelecionada = signal<number | null>(null);
-  readonly paginaPublica = computed(() =>
-    /^\/(filiais(?:\/|$)|entrar|cadastro|ativar|acao-email|recuperar-conta|redefinir-senha|convite|unidades\/)/
-      .test(this.urlAtual()));
+  readonly paginaPublica = computed(() => {
+    const caminho = this.urlAtual().split(/[?#]/, 1)[0];
+    if (caminho === '/filiais' || caminho.startsWith('/filiais/')) {
+      return this.auth.sessao()?.perfil !== 'CLIENTE';
+    }
+    return /^\/(entrar|cadastro|ativar|acao-email|recuperar-conta|redefinir-senha|convite|unidades\/)/
+      .test(caminho);
+  });
   readonly itens = computed<NavItem[]>(() => {
     const sessao = this.auth.sessao();
     if (!sessao) { return []; }
@@ -150,8 +155,6 @@ export class AppComponent implements OnInit {
         { texto: 'Meus agendamentos', icone: 'calendar', destino: '/meus-agendamentos' },
         { texto: 'Lista de espera', icone: 'clock', destino: '/lista-espera' },
         { texto: 'Notificações', icone: 'mail', destino: '/notificacoes' },
-        ...(this.filialSelecionada() ? [{ texto: 'Filial e serviços', icone: 'scissors' as const,
-          destino: `/unidades/${this.filialSelecionada()}` }] : []),
         { texto: 'Meu perfil', icone: 'user', destino: '/conta' }
       ];
       case 'PROFISSIONAL': return [
@@ -218,18 +221,16 @@ export class AppComponent implements OnInit {
     effect(onCleanup => {
       const sessao = this.auth.sessao();
       const rota = this.urlAtual();
-      if (sessao?.perfil !== 'CLIENTE') { this.filialSelecionada.set(null); return; }
+      if (sessao?.perfil !== 'CLIENTE') { return; }
       const rotaFilial = /^\/unidades\/(\d+)/.exec(rota);
       const salvo = typeof localStorage === 'undefined' ? null : localStorage.getItem('estilo-marcado-filial');
       const id = Number(rotaFilial?.[1] ?? salvo);
-      if (!Number.isInteger(id) || id <= 0) { this.filialSelecionada.set(null); return; }
+      if (!Number.isInteger(id) || id <= 0) { return; }
       const sub = this.estabelecimento.filialPublica(id).subscribe({
         next: () => {
-          this.filialSelecionada.set(id);
           if (typeof localStorage !== 'undefined') { localStorage.setItem('estilo-marcado-filial', String(id)); }
         },
         error: () => {
-          this.filialSelecionada.set(null);
           if (typeof localStorage !== 'undefined') { localStorage.removeItem('estilo-marcado-filial'); }
         }
       });
@@ -257,6 +258,12 @@ export class AppComponent implements OnInit {
   alternarMenu(): void { this.menuAberto.update(aberto => !aberto); this.erroSaida.set(''); }
   fecharMenu(): void { this.menuAberto.set(false); }
   alternarSidebar(): void { this.sidebarAberta.update(aberta => !aberta); }
+  fecharSidebar(): void {
+    if (this.sidebarAberta()) {
+      this.sidebarAberta.set(false);
+      this.sidebarTrigger?.nativeElement.focus();
+    }
+  }
   sair(): void {
     if (this.saindo()) { return; }
     this.saindo.set(true);
@@ -274,6 +281,6 @@ export class AppComponent implements OnInit {
   @HostListener('document:keydown.escape')
   escapar(): void {
     if (this.menuAberto()) { this.fecharMenu(); this.accountTrigger?.nativeElement.focus(); }
-    this.sidebarAberta.set(false);
+    this.fecharSidebar();
   }
 }

@@ -56,7 +56,7 @@ interface DiaResumo { data: string; vagas: number | null }
                 <button class="button ghost" type="button" (click)="carregarServicos()">Tentar novamente</button>
               } @else if (!servicos().length) {
                 <p role="status">Esta filial não tem serviços agendáveis no momento.</p>
-                <a routerLink="/filiais">Escolher outra filial</a>
+                <a routerLink="/filiais" [queryParams]="retornoFiliais">Escolher outra filial</a>
               } @else {
                 <div class="booking-choices" role="group" aria-label="Escolher serviço">
                   @for (servico of servicos(); track servico.id) {
