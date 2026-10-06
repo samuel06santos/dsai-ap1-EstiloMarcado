@@ -24,7 +24,12 @@ export class FirebaseClientService {
   private emulatorConnected = false;
 
   config(): Promise<FirebasePublicConfig> {
-    this.configPromise ??= firstValueFrom(this.http.get<FirebasePublicConfig>('/api/autenticacao/firebase/config'));
+    this.configPromise ??= firstValueFrom(
+      this.http.get<FirebasePublicConfig>('/api/autenticacao/firebase/config'))
+      .catch(error => {
+        this.configPromise = undefined;
+        throw error;
+      });
     return this.configPromise;
   }
 

@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { computed, inject, Injectable, signal } from '@angular/core';
-import { catchError, finalize, from, map, Observable, of, switchMap, tap } from 'rxjs';
+import { catchError, defer, finalize, from, map, Observable, of, switchMap, tap } from 'rxjs';
 import { FirebaseClientService, FirebasePublicConfig } from './firebase-client.service';
 
 export type Perfil = 'CLIENTE' | 'PROFISSIONAL' | 'RECEPCAO' | 'ADMINISTRADOR';
@@ -86,7 +86,7 @@ export class AuthService {
     );
   }
 
-  configuracaoFirebase(): Observable<FirebasePublicConfig> { return from(this.firebase.config()); }
+  configuracaoFirebase(): Observable<FirebasePublicConfig> { return defer(() => this.firebase.config()); }
 
   confirmarEmailFirebase(code: string): Observable<void> {
     return from(this.firebase.applyVerificationCode(code)).pipe(

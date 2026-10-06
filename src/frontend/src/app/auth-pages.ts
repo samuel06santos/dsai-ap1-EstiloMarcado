@@ -3,7 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { finalize } from 'rxjs';
+import { finalize, retry } from 'rxjs';
 import { AuthService, ErroApi, MeuPerfil, MetodosLogin, Perfil, Usuario } from './auth.service';
 import { UiIconComponent } from './ui-icon.component';
 import { EstabelecimentoService, Profissional } from './estabelecimento.service';
@@ -22,6 +22,13 @@ import { EstabelecimentoService, Profissional } from './estabelecimento.service'
         <button class="button primary" [disabled]="form.invalid || enviando()">{{ enviando() ? 'Entrando…' : 'Entrar' }}</button>
       </form>
       <div class="auth-links"><a routerLink="/recuperar-conta">Esqueci minha senha</a><a routerLink="/cadastro">Criar conta</a></div>
+      @if (carregandoMetodos()) { <p role="status">Carregando opções de login…</p> }
+      @if (erroMetodos()) {
+        <div class="notice error" role="alert">
+          <p>Não foi possível carregar os métodos de login.</p>
+          <button class="button ghost" type="button" (click)="carregarMetodos()">Tentar novamente</button>
+        </div>
+      }
       @if (firebaseAtivo()) {
         <div style="margin: 2rem 0; border-top: 1px solid #ccc; text-align: center; display: block;"><span style="top: -0.8em; position: relative; background-color: #fff; padding: 0 0.3em;">ou</span></div>
         <div style="display: grid; gap: 0.5rem; margin-top: 1rem; text-align: center;">
@@ -43,11 +50,23 @@ export class LoginComponent implements OnInit {
   readonly erro = signal('');
   readonly enviando = signal(false);
   readonly firebaseAtivo = signal(false);
+  readonly carregandoMetodos = signal(false);
+  readonly erroMetodos = signal(false);
 
   ngOnInit(): void {
-    this.auth.configuracaoFirebase().subscribe({
+    this.carregarMetodos();
+  }
+
+  carregarMetodos(): void {
+    if (this.carregandoMetodos()) return;
+    this.erroMetodos.set(false);
+    this.carregandoMetodos.set(true);
+    this.auth.configuracaoFirebase().pipe(
+      retry({ count: 15, delay: 4000 }),
+      finalize(() => this.carregandoMetodos.set(false))
+    ).subscribe({
       next: config => this.firebaseAtivo.set(config.enabled),
-      error: () => this.erro.set('Não foi possível carregar os métodos de login.')
+      error: () => this.erroMetodos.set(true)
     });
   }
 
