@@ -198,6 +198,8 @@ textarea { min-height: 6rem; resize: vertical; }
 .notice { padding: .9rem 1rem; border-radius: .75rem; background: var(--soft); line-height: 1.5; }
 .notice.error { color: #8f2435; background: #fff0f2; }
 .notice.success { color: #295f42; background: #edf8f1; }
+.notice.offer-highlight { border: 2px solid var(--wine); background: #fff3f3;
+  box-shadow: 0 5px 16px rgb(75 29 43 / 14%); scroll-margin-top: 100px; }
 .badge { display: inline-flex; align-items: center; width: fit-content; border-radius: 999px; background: var(--blush); color: var(--wine-dark); font-size: .75rem; font-weight: 700; padding: .35rem .7rem; }
 .status { color: var(--muted); font-size: .8rem; }
 .user-list { display: grid; margin-top: 1.1rem; }

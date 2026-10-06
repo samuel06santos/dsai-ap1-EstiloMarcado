@@ -5,6 +5,7 @@ import { HttpClient } from '@angular/common/http';
 import { filter, finalize } from 'rxjs';
 import { AuthService, Perfil } from './auth.service';
 import { EstabelecimentoService } from './estabelecimento.service';
+import { NotificacoesEstadoService } from './notificacoes-estado.service';
 import { IconName, UiIconComponent } from './ui-icon.component';
 
 interface NavItem {
@@ -125,6 +126,7 @@ export class AppComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly http = inject(HttpClient);
   private readonly estabelecimento = inject(EstabelecimentoService);
+  private readonly notificacoesEstado = inject(NotificacoesEstadoService);
   @ViewChild('accountArea') private accountArea?: ElementRef<HTMLElement>;
   @ViewChild('accountTrigger') private accountTrigger?: ElementRef<HTMLButtonElement>;
   @ViewChild('sidebarTrigger') private sidebarTrigger?: ElementRef<HTMLButtonElement>;
@@ -196,6 +198,7 @@ export class AppComponent implements OnInit {
     effect(onCleanup => {
       const sessao = this.auth.sessao();
       this.urlAtual();
+      this.notificacoesEstado.revisao();
       if (!sessao) { this.naoLidas.set(0); return; }
       const sub = this.http.get<{ naoLidas: number }>('/api/me/notificacoes/nao-lidas/contagem')
         .subscribe({ next: dados => this.naoLidas.set(dados.naoLidas),

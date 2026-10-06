@@ -1,8 +1,8 @@
 import { HttpClient } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { Observable, switchMap } from 'rxjs';
+import { Observable, catchError, forkJoin, of, switchMap } from 'rxjs';
 import { AuthService } from './auth.service';
 import { formatarData as dataLocal, formatarDataHora as dataHoraLocal } from './data-apresentacao';
 import { EstadoListaComponent } from './estado-lista.component';
@@ -10,6 +10,7 @@ import { FiltroAtivo, classificarLista, orientacaoVazia, parametrosFiltrosUrl }
   from './estados-interface';
 import { EstabelecimentoService, HorarioDisponivel, Profissional, ServicoPublico } from './estabelecimento.service';
 import { formatarFuso } from './fuso-apresentacao';
+import { NotificacoesEstadoService } from './notificacoes-estado.service';
 
 interface Solicitacao { id: number; unidadeId: number; servicoId: number; profissionalId: number | null;
   dataInicio: string; dataFim: string; horaInicio: string | null; horaFim: string | null;
@@ -163,8 +164,12 @@ export class OperacaoApi {
             </article>
           }
         </div>
+        @if (mensagemOferta()) { <p class="notice" role="status">{{ mensagemOferta() }}</p> }
         @for (o of ofertas(); track o.id) {
-          <article class="notice"><strong>Vaga {{ dataHoraLocal(o.inicio) }}
+          <article class="notice" [class.offer-highlight]="o.id === ofertaDestacadaId"
+            [attr.id]="o.id === ofertaDestacadaId ? 'oferta-destacada' : null">
+            @if (o.id === ofertaDestacadaId) { <span class="badge">Oferta do aviso</span><br> }
+            <strong>Vaga {{ dataHoraLocal(o.inicio) }}
             ({{ formatarFuso(o.fusoHorario, o.inicio) }})</strong>
             <span> · {{ o.status }} · válida até {{ instanteLocal(o.expiraEm, o.fusoHorario) }}</span>
             @if (o.status === 'ENVIADA') {
@@ -190,8 +195,10 @@ export class ListaEsperaComponent {
   readonly servicos = signal<ServicoPublico[]>([]);
   readonly profissionais = signal<{ id: number; nome: string }[]>([]);
   readonly mensagem = signal('');
+  readonly mensagemOferta = signal('');
   readonly erro = signal('');
   readonly ocupado = signal(false);
+  readonly ofertaDestacadaId: number | null;
   unidadeId: number | null = null;
   servicoId: number | null = null;
   profissionalId: number | null = null;
@@ -201,6 +208,8 @@ export class ListaEsperaComponent {
   horaFim = '';
   constructor() {
     const params = this.rota.snapshot.queryParamMap;
+    const oferta = Number(params.get('ofertaId'));
+    this.ofertaDestacadaId = Number.isSafeInteger(oferta) && oferta > 0 ? oferta : null;
     const unidade = Number(params.get('unidadeId') ??
       (typeof localStorage === 'undefined' ? null : localStorage.getItem('estilo-marcado-filial')));
     const servico = Number(params.get('servicoId'));
@@ -250,8 +259,31 @@ export class ListaEsperaComponent {
     const servico = this.servicos().find(item => item.id === this.servicoId);
     this.profissionais.set(servico?.profissionais ?? []);
   }
-  carregar(): void { this.api.privadas().subscribe({ next: dados => this.solicitacoes.set(dados),
+  carregar(): void { this.api.privadas().subscribe({ next: dados => {
+      this.solicitacoes.set(dados);
+      if (this.ofertaDestacadaId) { this.buscarOfertaDestacada(dados); }
+    },
     error: () => this.erro.set('Não foi possível carregar a lista.') }); }
+  private buscarOfertaDestacada(solicitacoes: Solicitacao[]): void {
+    if (!solicitacoes.length) {
+      this.mensagemOferta.set('Não foi possível abrir essa oferta. Confira suas solicitações abaixo.');
+      return;
+    }
+    forkJoin(solicitacoes.map(s => this.api.ofertas(s.id).pipe(catchError(() => of([] as Oferta[])))))
+      .subscribe(listas => {
+        const indice = listas.findIndex(ofertas => ofertas.some(o => o.id === this.ofertaDestacadaId));
+        if (indice < 0) {
+          this.mensagemOferta.set('Não foi possível abrir essa oferta. Confira suas solicitações abaixo.');
+          return;
+        }
+        this.ofertas.set(listas[indice]);
+        this.mensagemOferta.set('Oferta do aviso encontrada na sua lista de espera.');
+        if (typeof document !== 'undefined') {
+          requestAnimationFrame(() => document.getElementById('oferta-destacada')
+            ?.scrollIntoView({ block: 'center' }));
+        }
+      });
+  }
   entrar(): void {
     if (!this.unidadeId || !this.servicoId) { this.erro.set('Informe filial e serviço.'); return; }
     this.ocupado.set(true); this.erro.set('');
@@ -281,77 +313,275 @@ export class ListaEsperaComponent {
 }
 
 @Component({
-  selector: 'app-notificacoes', standalone: true, imports: [FormsModule, EstadoListaComponent],
+  selector: 'app-notificacoes', standalone: true, imports: [FormsModule, RouterLink, EstadoListaComponent],
   providers: [OperacaoApi],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  styleUrl: './notificacoes.component.css',
   template: `<div class="page-stack"><header class="page-heading"><p class="eyebrow">Atualizações</p>
     <h1>Notificações</h1><p>Veja novidades sobre seus agendamentos e ofertas.</p></header>
-    <section id="preferencias" class="surface-panel section-card"><h2>Preferências</h2>
-      <p class="muted-copy">Escolha quais avisos deseja receber por e-mail.</p>
-      <form (ngSubmit)="salvarPreferencias()">
-        <label class="checkbox-line"><input type="checkbox" name="lembretes" [(ngModel)]="lembretes">
-          Receber lembretes de agendamento</label>
-        <label class="checkbox-line"><input type="checkbox" name="avisosLista" [(ngModel)]="avisosLista">
-          Receber avisos da lista de espera</label>
-        <button class="button ghost" type="submit" [disabled]="ocupado()">
-          {{ ocupado() ? 'Salvando…' : 'Salvar preferências' }}</button>
-      </form>
-    </section>
-    <section class="surface-panel"><h2>Suas notificações</h2>
+    <section class="surface-panel" aria-labelledby="notificacoes-titulo"><h2 id="notificacoes-titulo">Suas notificações</h2>
       <p class="muted-copy">Novidades sobre seus agendamentos e ofertas de vaga.</p>
-      @if (itens().length) {
-        <div class="user-list">
+      @if (carregandoLista()) {
+        <p class="loading-state" role="status">Carregando notificações…</p>
+      } @else if (erroLista()) {
+        <app-estado-lista [estado]="'erro'" titulo="Não foi possível carregar as notificações"
+          [descricao]="erroLista()" icone="mail">
+          <button class="button ghost" type="button" (click)="carregar()">Tentar novamente</button>
+        </app-estado-lista>
+      } @else if (itens().length) {
+        <div class="notification-list">
         @for (item of itens(); track item.id) {
-          <article><div><strong>{{ item.tipo }}</strong><small>{{ instanteLocal(item.criadoEm) }} ·
-            {{ item.lidoEm ? 'Lida' : 'Não lida' }}</small></div>
-            @if (!item.lidoEm) { <button class="button ghost small" type="button" [disabled]="ocupado()"
-              (click)="ler(item.id)">Marcar como lida</button> }
+          <article class="notification-card" [class.is-unread]="!item.lidoEm" role="link" tabindex="0"
+            [attr.aria-label]="'Abrir ' + titulo(item) + ', ' + (item.lidoEm ? 'lida' : 'não lida')"
+            [attr.aria-busy]="acaoEmCursoId() === item.id"
+            (click)="abrir(item)" (keydown.enter)="abrir(item)">
+            <div class="notification-copy">
+              <div class="notification-card-heading">
+                <strong>{{ titulo(item) }}</strong>
+                <span class="notification-state">{{ item.lidoEm ? 'Lida' : 'Não lida' }}</span>
+              </div>
+              <time [attr.datetime]="item.criadoEm">{{ instanteLocal(item.criadoEm) }}</time>
+              <p>{{ resumo(item) }}</p>
+            </div>
+            @if (!item.lidoEm) {
+              <button class="button ghost small notification-read" type="button"
+                [disabled]="acaoEmCursoId() !== null"
+                (click)="ler($event, item)" (keydown.enter)="$event.stopPropagation()">
+                {{ acaoEmCursoId() === item.id ? 'Aguarde…' : 'Marcar como lida' }}
+              </button>
+            }
+            @if (falhaAbertura()?.id === item.id) {
+              <div class="notification-fallback" role="alert">
+                <span>{{ falhaAbertura()!.mensagem }}</span>
+                <a [routerLink]="falhaAbertura()!.destino" (click)="$event.stopPropagation()"
+                  (keydown.enter)="$event.stopPropagation()">{{ falhaAbertura()!.rotulo }}</a>
+              </div>
+            }
           </article>
         }
         </div>
-      } @else if (!erro()) {
+      } @else {
         <app-estado-lista [estado]="'sem-dados'" [titulo]="vazio().titulo"
           [descricao]="vazio().descricao" [icone]="'mail'">
           <button class="button ghost" type="button" (click)="irParaPreferencias()">Ajustar preferências</button>
         </app-estado-lista>
       }
+      @if (erroLeitura()) { <p class="notice error" role="alert">{{ erroLeitura() }}</p> }
     </section>
-    @if (mensagem()) { <p class="notice success" role="status">{{ mensagem() }}</p> }
-    @if (erro()) { <p class="notice error" role="alert">{{ erro() }}</p> }
+    <section id="preferencias" class="surface-panel section-card"><h2>Preferências</h2>
+      <p class="muted-copy">Escolha quais avisos deseja receber por e-mail.</p>
+      @if (carregandoPreferencias()) { <p role="status">Carregando preferências…</p> }
+      @if (erroPreferencias()) {
+        <p class="notice error" role="alert">{{ erroPreferencias() }}</p>
+        <button class="button ghost small" type="button" (click)="carregarPreferencias()">Tentar novamente</button>
+      }
+      <form (ngSubmit)="salvarPreferencias()">
+        <label class="checkbox-line"><input type="checkbox" name="lembretes" [(ngModel)]="lembretes"
+          [disabled]="!preferenciasProntas() || salvandoPreferencias()">
+          Receber lembretes de agendamento</label>
+        <label class="checkbox-line"><input type="checkbox" name="avisosLista" [(ngModel)]="avisosLista"
+          [disabled]="!preferenciasProntas() || salvandoPreferencias()">
+          Receber avisos da lista de espera</label>
+        <button class="button ghost" type="submit" [disabled]="!preferenciasProntas() || salvandoPreferencias()">
+          {{ salvandoPreferencias() ? 'Salvando…' : 'Salvar preferências' }}</button>
+      </form>
+      @if (mensagemPreferencias()) { <p class="notice success" role="status">{{ mensagemPreferencias() }}</p> }
+    </section>
   </div>`
 })
 export class NotificacoesComponent {
   readonly instanteLocal = instanteLocal;
   readonly vazio = () => orientacaoVazia('notificacoes');
   private readonly api = inject(OperacaoApi);
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
+  private readonly notificacoesEstado = inject(NotificacoesEstadoService);
+  private readonly usuarioId = computed(() => this.auth.sessao()?.id);
   readonly itens = signal<Notificacao[]>([]);
-  readonly erro = signal('');
-  readonly mensagem = signal('');
-  readonly ocupado = signal(false);
+  readonly carregandoLista = signal(true);
+  readonly erroLista = signal('');
+  readonly erroLeitura = signal('');
+  readonly acaoEmCursoId = signal<number | null>(null);
+  readonly falhaAbertura = signal<{ id: number; mensagem: string; destino: string; rotulo: string } | null>(null);
+  readonly carregandoPreferencias = signal(true);
+  readonly preferenciasProntas = signal(false);
+  readonly erroPreferencias = signal('');
+  readonly salvandoPreferencias = signal(false);
+  readonly mensagemPreferencias = signal('');
+  private focoPreferenciasPendente = false;
   lembretes = true; avisosLista = true;
-  constructor() { this.carregar(); this.api.preferencias().subscribe({
-    next: p => { this.lembretes = p.lembretes; this.avisosLista = p.avisosLista; },
-    error: () => this.erro.set('Não foi possível carregar preferências.')
-  }); }
-  carregar(): void { this.api.notificacoes().subscribe({ next: itens => this.itens.set(itens),
-    error: () => this.erro.set('Não foi possível carregar notificações.') }); }
-  ler(id: number): void {
-    if (this.ocupado()) { return; }
-    this.ocupado.set(true);
-    this.api.ler(id).subscribe({ next: () => { this.ocupado.set(false); this.carregar(); },
-      error: () => { this.ocupado.set(false); this.erro.set('Não foi possível marcar como lida.'); } });
+  constructor() {
+    effect(() => {
+      const usuarioId = this.usuarioId();
+      this.itens.set([]);
+      this.erroLeitura.set('');
+      this.falhaAbertura.set(null);
+      this.acaoEmCursoId.set(null);
+      this.salvandoPreferencias.set(false);
+      this.preferenciasProntas.set(false);
+      if (usuarioId) { this.carregar(); this.carregarPreferencias(); }
+    });
+  }
+  carregar(): void {
+    const usuarioId = this.usuarioId();
+    if (!usuarioId) { return; }
+    this.carregandoLista.set(true);
+    this.erroLista.set('');
+    this.api.notificacoes().subscribe({
+      next: itens => {
+        if (this.usuarioId() !== usuarioId) { return; }
+        this.itens.set([...itens].sort((a, b) =>
+          Date.parse(b.criadoEm) - Date.parse(a.criadoEm) || b.id - a.id));
+        this.carregandoLista.set(false);
+      },
+      error: () => {
+        if (this.usuarioId() !== usuarioId) { return; }
+        this.erroLista.set('Confira sua conexão e tente novamente.');
+        this.carregandoLista.set(false);
+      }
+    });
+  }
+  carregarPreferencias(): void {
+    const usuarioId = this.usuarioId();
+    if (!usuarioId) { return; }
+    this.carregandoPreferencias.set(true);
+    this.erroPreferencias.set('');
+    this.api.preferencias().subscribe({
+      next: p => {
+        if (this.usuarioId() !== usuarioId) { return; }
+        this.lembretes = p.lembretes;
+        this.avisosLista = p.avisosLista;
+        this.preferenciasProntas.set(true);
+        this.carregandoPreferencias.set(false);
+        if (this.focoPreferenciasPendente) {
+          this.focoPreferenciasPendente = false;
+          requestAnimationFrame(() => this.focarPrimeiraPreferencia());
+        }
+      },
+      error: () => {
+        if (this.usuarioId() !== usuarioId) { return; }
+        this.erroPreferencias.set('Não foi possível carregar preferências.');
+        this.carregandoPreferencias.set(false);
+      }
+    });
+  }
+  titulo(item: Notificacao): string {
+    return { CRIACAO: 'Agendamento criado', CONFIRMACAO: 'Agendamento confirmado',
+      CANCELAMENTO: 'Agendamento cancelado', REAGENDAMENTO: 'Agendamento reagendado',
+      OFERTA: 'Vaga disponível' }[item.tipo] ?? 'Atualização da sua conta';
+  }
+  resumo(item: Notificacao): string {
+    if (item.referenciaTipo === 'AGENDAMENTO') { return 'Abra os detalhes do atendimento.'; }
+    if (item.referenciaTipo === 'OFERTA') { return 'Confira a oferta na sua lista de espera.'; }
+    return 'Veja as novidades da sua conta.';
+  }
+  abrir(item: Notificacao): void {
+    if (this.acaoEmCursoId() !== null) { return; }
+    this.erroLeitura.set('');
+    this.falhaAbertura.set(null);
+    if (!Number.isSafeInteger(item.referenciaId) || item.referenciaId <= 0) {
+      this.mostrarDestinoGeral(item);
+      return;
+    }
+    this.acaoEmCursoId.set(item.id);
+    if (item.referenciaTipo === 'AGENDAMENTO') {
+      const usuarioId = this.usuarioId();
+      this.api.eventos(item.referenciaId).subscribe({
+        next: () => {
+          if (this.usuarioId() === usuarioId) {
+            this.lerENavegar(item, `/agendamentos/${item.referenciaId}/historico`);
+          }
+        },
+        error: () => {
+          if (this.usuarioId() === usuarioId) {
+            this.acaoEmCursoId.set(null);
+            this.mostrarDestinoGeral(item);
+          }
+        }
+      });
+    } else if (item.referenciaTipo === 'OFERTA') {
+      this.lerENavegar(item, `/lista-espera?ofertaId=${item.referenciaId}`);
+    } else {
+      this.acaoEmCursoId.set(null);
+      this.mostrarDestinoGeral(item);
+    }
+  }
+  ler(evento: Event, item: Notificacao): void {
+    evento.stopPropagation();
+    if (this.acaoEmCursoId() !== null || item.lidoEm) { return; }
+    const usuarioId = this.usuarioId();
+    this.acaoEmCursoId.set(item.id);
+    this.erroLeitura.set('');
+    this.api.ler(item.id).subscribe({
+      next: () => {
+        if (this.usuarioId() !== usuarioId) { return; }
+        this.marcarLida(item.id);
+        this.acaoEmCursoId.set(null);
+      },
+      error: () => {
+        if (this.usuarioId() !== usuarioId) { return; }
+        this.acaoEmCursoId.set(null);
+        this.erroLeitura.set('Não foi possível marcar como lida. Tente novamente.');
+      }
+    });
+  }
+  private lerENavegar(item: Notificacao, destino: string): void {
+    if (item.lidoEm) { void this.router.navigateByUrl(destino); return; }
+    const usuarioId = this.usuarioId();
+    this.api.ler(item.id).subscribe({
+      next: () => {
+        if (this.usuarioId() !== usuarioId) { return; }
+        this.marcarLida(item.id);
+        void this.router.navigateByUrl(destino);
+      },
+      error: () => {
+        if (this.usuarioId() !== usuarioId) { return; }
+        this.erroLeitura.set('Não foi possível marcar como lida. O aviso continua disponível.');
+        this.acaoEmCursoId.set(null);
+      }
+    });
+  }
+  private marcarLida(id: number): void {
+    this.itens.update(itens => itens.map(item => item.id === id
+      ? { ...item, lidoEm: new Date().toISOString() } : item));
+    this.notificacoesEstado.atualizarContagem();
+  }
+  private mostrarDestinoGeral(item: Notificacao): void {
+    const oferta = item.referenciaTipo === 'OFERTA';
+    this.falhaAbertura.set({ id: item.id,
+      mensagem: 'Não foi possível abrir a referência deste aviso. Ela pode ter sido removida ou estar indisponível.',
+      destino: oferta ? '/lista-espera' : '/meus-agendamentos',
+      rotulo: oferta ? 'Ver minha lista de espera' : 'Ver meus agendamentos' });
   }
   salvarPreferencias(): void {
-    if (this.ocupado()) { return; }
-    this.ocupado.set(true);
+    if (this.salvandoPreferencias() || !this.preferenciasProntas()) { return; }
+    const usuarioId = this.usuarioId();
+    this.salvandoPreferencias.set(true);
+    this.erroPreferencias.set('');
+    this.mensagemPreferencias.set('');
     this.api.salvarPreferencias({ lembretes: this.lembretes, avisosLista: this.avisosLista })
-      .subscribe({ next: () => { this.ocupado.set(false); this.mensagem.set('Preferências salvas.'); },
-        error: () => { this.ocupado.set(false); this.erro.set('Não foi possível salvar preferências.'); } });
+      .subscribe({ next: () => {
+        if (this.usuarioId() !== usuarioId) { return; }
+        this.salvandoPreferencias.set(false);
+        this.mensagemPreferencias.set('Preferências salvas.');
+      }, error: () => {
+        if (this.usuarioId() !== usuarioId) { return; }
+        this.salvandoPreferencias.set(false);
+        this.erroPreferencias.set('Não foi possível salvar preferências. Tente novamente.');
+      } });
   }
   irParaPreferencias(): void {
     const destino = typeof document === 'undefined' ? null : document.getElementById('preferencias');
     destino?.scrollIntoView({ block: 'start' });
-    (destino?.querySelector('input') as HTMLElement | null)?.focus();
+    if (this.preferenciasProntas()) { this.focarPrimeiraPreferencia(); }
+    else {
+      this.focoPreferenciasPendente = true;
+      (destino?.querySelector('button:not(:disabled)') as HTMLElement | null)?.focus();
+    }
+  }
+  private focarPrimeiraPreferencia(): void {
+    const destino = typeof document === 'undefined' ? null : document.getElementById('preferencias');
+    (destino?.querySelector('input:not(:disabled)') as HTMLElement | null)?.focus();
   }
 }
 
