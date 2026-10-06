@@ -1,9 +1,14 @@
 # Estilo Marcado
 
-> Plataforma web de agendamento e gestão para salões de beleza e barbearias.
+> Agendamentos simples para clientes e uma rotina organizada para salões de beleza e barbearias.
 
 - **Aplicação em produção:** <https://estilomarcado.samuelsantos.qzz.io>
 - **Repositório:** <https://github.com/samuel06santos/dsai-ap1-EstiloMarcado>
+
+**Equipe**
+
+- João Samuel Dias Santos
+- Renan Vieira
 
 ---
 
@@ -27,7 +32,6 @@
 16. [Desenvolvimento orientado por specs](#16-desenvolvimento-orientado-por-specs)
 17. [Rastreabilidade de IA](#17-rastreabilidade-de-ia)
 18. [Contagem de linhas (cloc)](#18-contagem-de-linhas-cloc)
-19. [Equipe](#19-equipe)
 
 ---
 
@@ -708,8 +712,3 @@ ignorados. A execução levou 13,02 s (18,0 arquivos/s; 1.753,5 linhas/s).
 | **Total** | **235** | **2.408** | **552** | **19.878** |
 
 Essa contagem inclui os testes versionados, as migrações SQL e a seed.
-
-## 19. Equipe
-
-- João Samuel Dias Santos
-- Renan Vieira
