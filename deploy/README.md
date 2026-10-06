@@ -256,6 +256,18 @@ sudo fail2ban-client status estilomarcado-auth
 ```bash
 cd /opt/estilo-marcado
 git pull --ff-only
+
+# Reaplica as configuracoes do nginx do host. Alteracoes de vhost (headers,
+# CSP, rate limit e proxy) NAO entram no `docker compose up`, que so reconstroi
+# os containers.
+sudo cp deploy/nginx/conf.d/estilomarcado-limits.conf \
+        /etc/nginx/conf.d/estilomarcado-limits.conf
+sudo cp deploy/nginx/proxy_params_estilomarcado.conf \
+        /etc/nginx/proxy_params_estilomarcado.conf
+sudo cp deploy/nginx/sites-available/estilomarcado.samuelsantos.qzz.io.conf \
+        /etc/nginx/sites-available/
+sudo nginx -t && sudo systemctl reload nginx
+
 docker compose --env-file deploy/.env.production -f docker-compose.prod.yml up -d --build
 ```
 
@@ -301,6 +313,13 @@ docker compose --env-file deploy/.env.production -f docker-compose.prod.yml down
   `estilomarcado.firebaseapp.com`. Depois de copiar o vhost, execute
   `sudo nginx -t && sudo systemctl reload nginx` e confira o header CSP em
   `curl -sI https://estilomarcado.samuelsantos.qzz.io/entrar`.
+- **A foto da conta Google (`lh3.googleusercontent.com`) nao carrega e o console
+  mostra `violates ... "img-src 'self' data: blob:"`:** o vhost do host ainda
+  esta com a CSP antiga, sem `https://lh3.googleusercontent.com`. O `img-src`
+  correto esta neste repositorio (o campo `fotoPerfilUrl` so aponta para esse
+  host). Recopie o vhost, rode `sudo nginx -t && sudo systemctl reload nginx` e
+  confirme com `curl -sI https://estilomarcado.samuelsantos.qzz.io/ | grep -i
+  content-security`. Reconstruir apenas o frontend **nao** altera esse header.
 - **Headers duplicados (`X-Frame-Options`, `X-Content-Type-Options`):** normais;
   o Spring Security adiciona os mesmos headers nas respostas da API.
 
