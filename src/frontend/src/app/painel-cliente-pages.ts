@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { EstadoListaComponent } from './estado-lista.component';
 import { orientacaoVazia } from './estados-interface';
 import { HorarioDisponivel } from './estabelecimento.service';
+import { formatarFuso } from './fuso-apresentacao';
 import { UiIconComponent } from './ui-icon.component';
 
 function diaNoFuso(fuso: string): string {
@@ -190,7 +191,7 @@ export class PainelClienteComponent implements OnInit {
 
   dataHora(item: Agendamento): string {
     return `${item.inicio.slice(0, 10).split('-').reverse().join('/')} ` +
-      `${item.inicio.slice(11, 16)} (${item.fusoHorario})`;
+      `${item.inicio.slice(11, 16)} (${formatarFuso(item.fusoHorario, item.inicio)})`;
   }
 
   podeRepetir(item: Agendamento): boolean {

@@ -8,6 +8,7 @@ import { chaveIdempotencia, lerRascunho, limparChaveIdempotencia,
 import { AuthService } from './auth.service';
 import { formatarDataHora } from './data-apresentacao';
 import { EstabelecimentoService, Filial, ServicoPublico } from './estabelecimento.service';
+import { formatarFuso } from './fuso-apresentacao';
 
 @Component({
   standalone: true,
@@ -35,7 +36,7 @@ import { EstabelecimentoService, Filial, ServicoPublico } from './estabeleciment
           <p>Status: <strong>{{ reservado.status }}</strong>.</p>
           <p>{{ reservado.servicoNome }} com {{ reservado.profissionalNome ?? nomeProfissional() }}
             em {{ formatarDataHora(reservado.inicio) }}
-            ({{ reservado.fusoHorario }}).</p>
+            ({{ formatarFuso(reservado.fusoHorario, reservado.inicio) }}).</p>
           <p>Filial: {{ reservado.unidadeNome ?? filial()?.nome }} · Valor acordado:
             {{ reservado.precoAcordado | currency:'BRL' }}</p>
           <div class="booking-actions">
@@ -77,7 +78,7 @@ import { EstabelecimentoService, Filial, ServicoPublico } from './estabeleciment
                 <dd><a [routerLink]="['/unidades', filial()!.id]" [queryParams]="parametrosVoltar(2)">Alterar</a></dd></div>
               <div><dt>Dia e horário</dt><dd>{{ formatarDataHora(rascunho()!.inicio) }}</dd>
                 <dd><a [routerLink]="['/unidades', filial()!.id]" [queryParams]="parametrosVoltar(3)">Alterar</a></dd></div>
-              <div><dt>Fuso horário</dt><dd>{{ filial()!.fusoHorario }}</dd></div>
+              <div><dt>Fuso horário</dt><dd>{{ formatarFuso(filial()!.fusoHorario, rascunho()!.inicio) }}</dd></div>
               <div><dt>Duração</dt><dd>{{ servico()!.duracaoMinutos }} minutos</dd></div>
               <div><dt>Preço atual</dt><dd>{{ servico()!.preco | currency:'BRL' }}</dd></div>
               <div><dt>Estado após criar</dt><dd>AGENDADO</dd></div>
@@ -106,6 +107,7 @@ import { EstabelecimentoService, Filial, ServicoPublico } from './estabeleciment
 })
 export class RevisaoAgendamentoComponent implements OnInit {
   readonly formatarDataHora = formatarDataHora;
+  readonly formatarFuso = formatarFuso;
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly estabelecimentos = inject(EstabelecimentoService);

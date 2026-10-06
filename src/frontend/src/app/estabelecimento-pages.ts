@@ -7,6 +7,7 @@ import { EstadoListaComponent } from './estado-lista.component';
 import { orientacaoVazia } from './estados-interface';
 import { Estabelecimento, EstabelecimentoService, Filial, FilialDados,
   Profissional, ServicoDados, ServicoPublico } from './estabelecimento.service';
+import { formatarFuso } from './fuso-apresentacao';
 import { UiIconComponent } from './ui-icon.component';
 
 interface OpcaoFuso { valor: string; rotulo: string; }
@@ -230,7 +231,8 @@ export class EstabelecimentoAdminComponent implements OnInit {
 
   fusosPara(valor: string): OpcaoFuso[] {
     if (valor && !FUSOS_HORARIOS.some(opcao => opcao.valor === valor)) {
-      return [{ valor, rotulo: valor }, ...FUSOS_HORARIOS];
+      const local = valor.split('/').at(-1)?.replaceAll('_', ' ') ?? 'Outro fuso';
+      return [{ valor, rotulo: `${local} (${formatarFuso(valor)})` }, ...FUSOS_HORARIOS];
     }
     return FUSOS_HORARIOS;
   }

@@ -9,6 +9,7 @@ import { AgendaItem } from './agenda-profissional.service';
 import { CalendarioAgendaComponent, VisaoAgenda } from './calendario-agenda.component';
 import { formatarDataHora } from './data-apresentacao';
 import { EstabelecimentoService, HorarioDisponivel } from './estabelecimento.service';
+import { formatarFuso } from './fuso-apresentacao';
 import { dividirPeriodoAgenda, FaixaAgenda } from './periodo-agenda';
 
 function diaAtual(fuso = 'America/Sao_Paulo'): string {
@@ -79,7 +80,7 @@ function mensagem(erro: unknown): string { return AuthService.mensagemErro(erro)
                   {{ item.status }} · {{ item.precoAcordado | currency:'BRL' }}</small>
                 <small>{{ item.unidadeNome ?? ('Filial #' + item.unidadeId) }}
                   · {{ item.profissionalNome ?? ('#' + item.profissionalId) }}</small>
-                <small>Fuso: {{ item.fusoHorario }}</small>
+                <small>Fuso: {{ formatarFuso(item.fusoHorario, item.inicio) }}</small>
                 @if (item.motivoCancelamento) { <small>Motivo: {{ item.motivoCancelamento }}</small> }
               </div>
               <div class="form-actions">
@@ -120,6 +121,7 @@ function mensagem(erro: unknown): string { return AuthService.mensagemErro(erro)
 })
 export class MeusAgendamentosComponent implements OnInit {
   readonly formatarDataHora = formatarDataHora;
+  readonly formatarFuso = formatarFuso;
   private readonly api = inject(AgendamentoApi);
   private readonly estabelecimentos = inject(EstabelecimentoService);
   private readonly route = inject(ActivatedRoute);

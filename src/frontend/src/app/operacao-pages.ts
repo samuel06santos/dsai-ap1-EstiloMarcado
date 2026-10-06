@@ -9,6 +9,7 @@ import { EstadoListaComponent } from './estado-lista.component';
 import { FiltroAtivo, classificarLista, orientacaoVazia, parametrosFiltrosUrl }
   from './estados-interface';
 import { EstabelecimentoService, HorarioDisponivel, Profissional, ServicoPublico } from './estabelecimento.service';
+import { formatarFuso } from './fuso-apresentacao';
 
 interface Solicitacao { id: number; unidadeId: number; servicoId: number; profissionalId: number | null;
   dataInicio: string; dataFim: string; horaInicio: string | null; horaFim: string | null;
@@ -163,7 +164,8 @@ export class OperacaoApi {
           }
         </div>
         @for (o of ofertas(); track o.id) {
-          <article class="notice"><strong>Vaga {{ dataHoraLocal(o.inicio) }} ({{ o.fusoHorario }})</strong>
+          <article class="notice"><strong>Vaga {{ dataHoraLocal(o.inicio) }}
+            ({{ formatarFuso(o.fusoHorario, o.inicio) }})</strong>
             <span> · {{ o.status }} · válida até {{ instanteLocal(o.expiraEm, o.fusoHorario) }}</span>
             @if (o.status === 'ENVIADA') {
               <button class="button primary small" type="button" (click)="aceitar(o)">Aceitar vaga</button>
@@ -174,6 +176,7 @@ export class OperacaoApi {
     </div>`
 })
 export class ListaEsperaComponent {
+  readonly formatarFuso = formatarFuso;
   readonly dataLocal = dataLocal;
   readonly dataHoraLocal = dataHoraLocal;
   readonly instanteLocal = instanteLocal;
@@ -437,7 +440,8 @@ export class HistoricoAgendamentoComponent {
       <section class="surface-panel"><h2>Ofertas da solicitação</h2>
         <p class="muted-copy">Horários oferecidos ao cliente; a vaga só é reservada após a aceitação.</p>
         @for (o of ofertasDaSelecionada(); track o.id) {
-          <p>{{ dataHoraLocal(o.inicio) }} ({{ o.fusoHorario }}) · {{ o.status }} · validade {{ instanteLocal(o.expiraEm, o.fusoHorario) }}</p>
+          <p>{{ dataHoraLocal(o.inicio) }} ({{ formatarFuso(o.fusoHorario, o.inicio) }})
+            · {{ o.status }} · validade {{ instanteLocal(o.expiraEm, o.fusoHorario) }}</p>
         }
       </section>
     }
@@ -492,6 +496,7 @@ export class HistoricoAgendamentoComponent {
   </div>`
 })
 export class FilaEquipeComponent {
+  readonly formatarFuso = formatarFuso;
   readonly dataLocal = dataLocal;
   readonly dataHoraLocal = dataHoraLocal;
   readonly instanteLocal = instanteLocal;
@@ -681,7 +686,8 @@ export class FilaEquipeComponent {
     @if (carregando()) { <p class="loading-state" role="status">Carregando indicadores…</p> }
     @if (relatorio(); as r) {
       <section class="surface-panel"><h2>Total do período</h2>
-        <p class="muted-copy">Indicadores agregados da filial no intervalo escolhido. Fuso: {{ r.fusoHorario }}</p>
+        <p class="muted-copy">Indicadores agregados da filial no intervalo escolhido.
+          Fuso: {{ formatarFuso(r.fusoHorario, r.geradoEm) }}</p>
         <div class="overview-grid">
           <p>Agendados: <strong>{{ r.total.agendados }}</strong></p>
           <p>Confirmados: <strong>{{ r.total.confirmados }}</strong></p>
@@ -708,6 +714,7 @@ export class FilaEquipeComponent {
   </div>`
 })
 export class RelatorioOperacionalComponent {
+  readonly formatarFuso = formatarFuso;
   readonly dataLocal = dataLocal;
   private readonly api = inject(OperacaoApi);
   private readonly auth = inject(AuthService);

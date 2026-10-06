@@ -7,6 +7,7 @@ import { CalendarioAgendaComponent, VisaoAgenda } from './calendario-agenda.comp
 import { EstadoListaComponent } from './estado-lista.component';
 import { classificarLista, orientacaoVazia } from './estados-interface';
 import { EstabelecimentoService, Filial } from './estabelecimento.service';
+import { formatarFuso } from './fuso-apresentacao';
 import { UiIconComponent } from './ui-icon.component';
 
 @Component({
@@ -28,7 +29,7 @@ import { UiIconComponent } from './ui-icon.component';
                 <dl class="branch-details">
                   <div><dt>Endereço</dt><dd>{{ dados.endereco || 'Não informado' }}</dd></div>
                   <div><dt>Telefone</dt><dd>{{ dados.telefone || 'Não informado' }}</dd></div>
-                  <div><dt>Fuso horário</dt><dd>{{ dados.fusoHorario }}</dd></div>
+                  <div><dt>Fuso horário</dt><dd>{{ formatarFuso(dados.fusoHorario) }}</dd></div>
                 </dl>
               }
               @if (atual.filial.ativa) {
@@ -47,6 +48,7 @@ import { UiIconComponent } from './ui-icon.component';
   `
 })
 export class MinhaFilialComponent implements OnInit {
+  readonly formatarFuso = formatarFuso;
   private readonly auth = inject(AuthService);
   private readonly estabelecimento = inject(EstabelecimentoService);
   readonly perfil = signal<MeuPerfil | null>(null);
@@ -104,13 +106,14 @@ export class MinhaFilialComponent implements OnInit {
           </div>
           }
         }
-        <p class="muted-copy">Horários no fuso da filial: {{ fuso() }}.</p>
+        <p class="muted-copy">Horários no fuso da filial: {{ formatarFuso(fuso(), dia()) }}.</p>
         @if (itemSelecionado(); as item) {
           <div class="content-card" role="status">
             <h3>Atendimento #{{ item.id }}</h3>
             <p><strong>{{ item.servico }}</strong> · {{ item.cliente }}</p>
             <p>{{ item.inicio.slice(0, 10).split('-').reverse().join('/') }}
-              · {{ item.inicio.slice(11, 16) }}–{{ item.fim.slice(11, 16) }} ({{ fuso() }})</p>
+              · {{ item.inicio.slice(11, 16) }}–{{ item.fim.slice(11, 16) }}
+              ({{ formatarFuso(fuso(), item.inicio) }})</p>
             <span class="status-chip">{{ nomeStatus(item.status) }}</span>
           </div>
         }
@@ -119,6 +122,7 @@ export class MinhaFilialComponent implements OnInit {
   `
 })
 export class AgendaProfissionalComponent implements OnInit {
+  readonly formatarFuso = formatarFuso;
   private readonly api = inject(AgendaProfissionalApi);
   private readonly estabelecimento = inject(EstabelecimentoService);
   private readonly route = inject(ActivatedRoute);

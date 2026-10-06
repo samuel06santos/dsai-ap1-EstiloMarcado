@@ -6,6 +6,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { catchError, forkJoin, of } from 'rxjs';
 import { formatarData, formatarDataHora } from './data-apresentacao';
 import { ConsultaHorarios, EstabelecimentoService, Filial, HorarioDisponivel, ServicoPublico } from './estabelecimento.service';
+import { formatarFuso } from './fuso-apresentacao';
 
 type Passo = 1 | 2 | 3;
 type Periodo = 'todos' | 'manha' | 'tarde';
@@ -95,7 +96,8 @@ interface DiaResumo { data: string; vagas: number | null }
             } @else {
               <p class="eyebrow">Passo 3 de 4</p>
               <h2>Qual dia e horário são melhores?</h2>
-              <p>Os horários estão no fuso {{ atual.fusoHorario }} e podem mudar até a confirmação.</p>
+              <p>Os horários estão no fuso {{ formatarFuso(atual.fusoHorario, dataSelecionada) }}
+                e podem mudar até a confirmação.</p>
               @if (avisoConflito()) {
                 <p class="notice error" role="alert">Essa vaga acabou. Nenhuma reserva ou cobrança foi feita.
                   Escolha uma das alternativas abaixo.</p>
@@ -196,6 +198,7 @@ interface DiaResumo { data: string; vagas: number | null }
 export class FilialPublicaComponent implements OnInit {
   readonly formatarData = formatarData;
   readonly formatarDataHora = formatarDataHora;
+  readonly formatarFuso = formatarFuso;
   private readonly api = inject(EstabelecimentoService);
   private readonly route = inject(ActivatedRoute);
   readonly passos = ['Serviço', 'Profissional', 'Dia e horário', 'Revisão'];
