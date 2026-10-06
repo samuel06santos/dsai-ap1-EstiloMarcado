@@ -8,7 +8,7 @@
 --
 -- COMO FUNCIONA
 --   * Todos os registros usam a faixa de IDs reservada 1000+ e os
---     estabelecimentos "Estilo Marcado (Mock)" e "Studio Bella (Mock)". Assim a
+--     estabelecimentos "Estilo Marcado" e "Studio Bella". Assim a
 --     seed nunca colide com dados reais/ja existentes.
 --   * E idempotente: pode rodar varias vezes sem duplicar registros. As colunas
 --     de agendamento dos registros mock sao convergidas em bancos que ja
@@ -45,9 +45,9 @@ BEGIN;
 -- Estabelecimentos e filiais (faixa 1000+)
 -- ----------------------------------------------------------------------------
 INSERT INTO estabelecimento (id, nome) VALUES
-    (1000, 'Estilo Marcado (Mock)'),
-    (1001, 'Studio Bella (Mock)'),
-    (1002, 'Belle Hair (Mock)')
+    (1000, 'Estilo Marcado'),
+    (1001, 'Studio Bella'),
+    (1002, 'Belle Hair')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO unidade (id, nome, nome_normalizado, estabelecimento_id, principal,

@@ -237,9 +237,9 @@ por filial, relatórios e a página pública de cada unidade.
 
 | `estabelecimento.id` | Nome |
 | --- | --- |
-| 1000 | Estilo Marcado (Mock) |
-| 1001 | Studio Bella (Mock) |
-| 1002 | Belle Hair (Mock) |
+| 1000 | Estilo Marcado |
+| 1001 | Studio Bella |
+| 1002 | Belle Hair |
 
 | `unidade.id` | Nome | Principal | Estabelecimento | Endereço | Telefone |
 | --- | --- | --- | --- | --- | --- |
