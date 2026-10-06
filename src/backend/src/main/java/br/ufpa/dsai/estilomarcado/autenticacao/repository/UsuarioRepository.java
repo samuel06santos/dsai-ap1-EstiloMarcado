@@ -26,6 +26,7 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     Optional<Usuario> findByFirebaseUid(String firebaseUid);
     boolean existsByFirebaseUid(String firebaseUid);
     long countByFirebaseUidIsNull();
+    long countByFirebaseUidIsNullAndEmailNormalizadoEndingWith(String sufixo);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Usuario> findWithLockByEmailNormalizado(String emailNormalizado);

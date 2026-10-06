@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -19,19 +21,29 @@ public class FirebaseReconciliation implements ApplicationRunner {
     private final FirebaseIdentityService firebase;
     private final UsuarioRepository users;
     private final SessaoService sessoes;
+    private final Environment environment;
 
     public FirebaseReconciliation(FirebaseIdentityService firebase, UsuarioRepository users,
-                                  SessaoService sessoes) {
+                                  SessaoService sessoes, Environment environment) {
         this.firebase = firebase;
         this.users = users;
         this.sessoes = sessoes;
+        this.environment = environment;
     }
 
     @Override
     public void run(ApplicationArguments args) {
-        if (firebase.enabled() && users.countByFirebaseUidIsNull() > 0) {
-            throw new IllegalStateException("existem contas sem UID Firebase; execute a importacao antes do corte");
+        if (!firebase.enabled()) return;
+        long semUid = users.countByFirebaseUidIsNull();
+        if (semUid == 0) return;
+        if (environment.acceptsProfiles(Profiles.of("docker"))
+                && !environment.acceptsProfiles(Profiles.of("prod"))
+                && users.countByFirebaseUidIsNullAndEmailNormalizadoEndingWith("@estilomarcado.dev") == semUid) {
+            log.warn("{} contas mock sem UID Firebase no ambiente de desenvolvimento; "
+                    + "elas nao poderao entrar ate serem importadas", semUid);
+            return;
         }
+        throw new IllegalStateException("existem contas sem UID Firebase; execute a importacao antes do corte");
     }
 
     @Scheduled(initialDelay = 600_000, fixedDelay = 86_400_000)

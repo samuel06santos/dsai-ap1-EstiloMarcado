@@ -41,6 +41,7 @@ confiável.
 O sistema reúne:
 
 - o cadastro do estabelecimento, suas filiais, profissionais e serviços;
+- a descoberta pública de filiais por nome e pelos serviços oferecidos;
 - a configuração da jornada de trabalho e das indisponibilidades (folgas,
   feriados, férias e bloqueios);
 - o cálculo de **horários realmente disponíveis**, considerando tudo isso;
@@ -113,6 +114,10 @@ enviado pelo navegador.
   conjunto de profissionais.
 - O catálogo é versionado por migrações Flyway e tem unicidade de nome por
   filial (case/acento-insensível), resistente a corrida.
+- Visitantes podem abrir `/filiais` sem conta, buscar por nome de filial ou
+  estabelecimento e combinar tags de serviços. A tag **Todos** limpa os filtros
+  de serviço; as demais mostram filiais que oferecem qualquer serviço escolhido.
+  A seleção, a busca e a página ficam na URL ao abrir uma filial e voltar.
 
 ### 4.3 Jornada, folgas, feriados, férias e bloqueios
 
@@ -402,7 +407,7 @@ flowchart TD
 | Backend | Java 21, Spring Boot 4.1.1 (MVC, Data JPA, Security, Validation, Mail, Session JDBC, Actuator) |
 | Frontend | Angular 20.3 (standalone, signals, `OnPush`), TypeScript 5.9 |
 | Banco de dados | PostgreSQL 17 |
-| Migrações | Flyway (`V1`–`V14`) |
+| Migrações | Flyway (`V1`–`V16`) |
 | Testes backend | JUnit 5, Spring Boot Test, Testcontainers (PostgreSQL real), Spring Security Test |
 | Empacotamento | Docker multi-stage; desenvolvimento via Docker Compose |
 | Produção | Docker Compose + nginx do host (TLS) + fail2ban |
@@ -457,6 +462,7 @@ Resumo por módulo (detalhes nos controllers em `src/backend/...`):
 | Contas internas | `/api/unidades/{id}/usuarios-internos` | `GET`, `POST`, `PATCH`, `POST /{id}/reenviar-convite` |
 | Estabelecimento | `/api/estabelecimentos/{id}` | `GET`, `PATCH`, `POST /unidades` |
 | Filiais | `/api/unidades/{id}` e `/api/unidades/me` | `GET /publico`, `PATCH`, CRUD de profissionais |
+| Descoberta pública | `/api/filiais/publicas` | `GET ?busca=&servico=&pagina=&tamanho=`; `GET /servicos` para as tags. Repetir `servico` combina filtros por OU. |
 | Catálogo | `/api/unidades/{id}/servicos`, `/api/servicos/{id}` | `GET`, `POST`, `PUT`, `PATCH /ativar|/desativar` |
 | Disponibilidade | `/api/unidades/{id}/profissionais/{pid}/...` | jornada, janelas, exceções, afastamentos, feriados, bloqueios |
 | Autoatendimento | `/api/profissionais/me/...` | jornada, janelas, exceções, afastamentos, bloqueios |
@@ -491,7 +497,7 @@ Passo a passo completo em [`deploy/README.md`](deploy/README.md).
 
 ## 11. Testes e qualidade
 
-- **14 classes de teste** de backend em `src/backend/src/test/java/...`
+- **19 classes de teste** de backend em `src/backend/src/test/java/...`
   cobrindo autenticação, estabelecimento/filiais, catálogo, disponibilidade,
   motor de horários, agendamento, painel do cliente, painel profissional,
   operação (lista de espera/notificações/relatórios), migrações e CSRF.
@@ -542,7 +548,7 @@ docker compose up --build -d
 scripts/seed.sh
 ```
 
-A seed cria o estabelecimento **Estilo Marcado (Mock)**, usa a faixa de IDs
+A seed cria o estabelecimento **Estilo Marcado**, usa a faixa de IDs
 `1000+` e é idempotente. Para recriar do zero (preservando as migrações):
 
 ```powershell
@@ -552,6 +558,13 @@ scripts/seed.ps1 -Reset
 ```bash
 scripts/seed.sh --reset
 ```
+
+Com `FIREBASE_AUTH_ENABLED=true`, as contas fictícias `@estilomarcado.dev`
+criadas pela seed podem permanecer sem UID Firebase no perfil local `docker`;
+isso não impede a API de iniciar, mas essas contas não conseguem entrar até
+serem importadas. Contas reais sem UID continuam impedindo a inicialização, e
+em produção a checagem exige UID para todas as contas. Veja
+[`deploy/FIREBASE_AUTH.md`](deploy/FIREBASE_AUTH.md) antes de importar contas.
 
 Contas mock criadas (senha única: `Estilo@2026`):
 
@@ -608,7 +621,8 @@ Specs existentes: visão geral, ambiente de desenvolvimento, autenticação,
 estabelecimentos/filiais/profissionais, catálogo, painel profissional, painel do
 cliente, navegação/Meu perfil, motor de disponibilidade, jornada/folgas/feriados,
 agenda do profissional, agendamento, proteção contra concorrência, lista de
-espera/notificações/relatórios, seed e segurança/produção.
+espera/notificações/relatórios, seed, descoberta pública de filiais e
+segurança/produção.
 
 ## 17. Rastreabilidade de IA
 
