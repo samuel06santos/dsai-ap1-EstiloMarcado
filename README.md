@@ -255,7 +255,7 @@ sequenceDiagram
     else conflito
         DB-->>API: violação de exclusão
         API-->>Web: 409 HORARIO_INDISPONIVEL
-        Web-->>Cliente: Horário ocupado; sugere alternativas
+        Web-->>Cliente: Horário ocupado, sugere alternativas
     end
 ```
 
@@ -649,36 +649,65 @@ Agent: deepseek/<modelo-exato> + manual
 Spec: SPEC/AAAA-MM-DD-nome-da-parte.md
 ```
 
+### Três prompts: o que melhor funcionou, o que pior funcionou e o que mudou o rumo do projeto, e por quê
+
+Entre os prompts registrados em `prompts/sessoes/`, estes três se destacam pelos
+resultados documentados nas respectivas sessões:
+
+1. **O que melhor funcionou — atalhos e estados da interface.** O pedido foi:
+   “Mova a SPEC/temp/2026-10-05-atalhos-contextuais-e-estados-da-interface.md
+   para SPEC/, e depois faça o commit dela nos padrões estabelecidos do projeto.
+   Implemente e teste a SPEC. Não faça push, apenas quando eu mandar.” Ele
+   definiu o arquivo, a ordem das etapas e o limite de publicação. A sessão
+   registrou a SPEC e a implementação em commits separados, 9 testes passando,
+   build do frontend concluído e nenhum push. [Sessão OpenCode](prompts/sessoes/2026-10-06-1358-deepseek-v4-flash.json).
+
+2. **O que pior funcionou — configuração de segurança para produção.** O prompt
+   pediu Docker de produção e a configuração do Nginx e Fail2ban já instalados
+   no servidor. A entrega foi ampla, mas a configuração publicada usou
+   `http2 on;`, incompatível com a versão do Nginx do servidor: `nginx -t`
+   falhou e foi necessário um commit corretivo. O pedido não informava a versão
+   do Nginx, e o agente assumiu uma compatibilidade que não havia verificado.
+   A falha foi corrigida depois. [Sessão OpenCode](prompts/sessoes/2026-10-01-0020-deepseek-v4-flash.json).
+
+3. **O que mudou o rumo do projeto — decisão sobre Firebase Authentication.**
+   O trecho decisivo pediu “uma avaliação técnica completa” entre migrar o
+   login por e-mail e senha para o Firebase Authentication ou manter o login
+   local em paralelo com o Google via Firebase. A decisão registrada foi migrar
+   senha e Google para o Firebase, mantendo permissões e dados dos usuários no
+   backend. Isso mudou a arquitetura de autenticação e levou à
+   [SPEC](SPEC/2026-10-05-firebase-authentication.md) e à sua implementação. A
+   validação com um projeto Firebase real ainda dependia das credenciais.
+   [Sessão Codex](prompts/sessoes/2026-10-05-0603-codex-gpt-6-sol.jsonl).
+
 ## 18. Contagem de linhas (cloc)
 
-Resultado oficial sobre os arquivos versionados, produzido com
-[`cloc`](https://github.com/AlDanial/cloc) (v1.98):
+Resultado informado para os arquivos versionados, produzido com
+[`cloc`](https://github.com/AlDanial/cloc) v1.98:
 
-```text
-      232 text files.
-      218 unique files.
-      48 files ignored.
-
-github.com/AlDanial/cloc v 1.98  T=13.40 s (14.2 files/s, 1318.2 lines/s)
--------------------------------------------------------------------------------
-Language                     files          blank        comment           code
--------------------------------------------------------------------------------
-Java                           148           1571            268           9683
-TypeScript                      18            304              3           3883
-SQL                             15             66            160            943
-CSS                              1             15              1            325
-Maven                            1              5              0            101
-PowerShell                       1             19             19             93
-Bourne Shell                     1             12             15             82
-Dockerfile                       4             28             13             38
-HTML                             1              0              0             13
--------------------------------------------------------------------------------
-SUM:                           190           2020            479          15161
--------------------------------------------------------------------------------
+```bash
+cloc . --vcs=git --exclude-dir=node_modules,vendor,dist,build,prompts --exclude-lang=Markdown,JSON,YAML,CSV,Text,SVG --not-match-f='(lock|\.min\.)'
 ```
 
-Observação: a contagem inclui o código de teste do backend (14 classes JUnit) e
-as migrações SQL (`V1`–`V14`) mais a seed.
+Foram identificados 287 arquivos de texto, dos quais 273 são únicos e 58 foram
+ignorados. A execução levou 13,02 s (18,0 arquivos/s; 1.753,5 linhas/s).
+
+| Linguagem | Arquivos | Em branco | Comentários | Código |
+| --- | ---: | ---: | ---: | ---: |
+| Java | 165 | 1.779 | 276 | 11.353 |
+| TypeScript | 32 | 428 | 46 | 6.122 |
+| SQL | 17 | 68 | 164 | 1.023 |
+| CSS | 7 | 15 | 1 | 660 |
+| JavaScript | 5 | 22 | 0 | 210 |
+| Python | 1 | 32 | 18 | 164 |
+| Maven | 1 | 5 | 0 | 120 |
+| PowerShell | 1 | 19 | 19 | 93 |
+| Bourne Shell | 1 | 12 | 15 | 82 |
+| Dockerfile | 4 | 28 | 13 | 38 |
+| HTML | 1 | 0 | 0 | 13 |
+| **Total** | **235** | **2.408** | **552** | **19.878** |
+
+Essa contagem inclui os testes versionados, as migrações SQL e a seed.
 
 ## 19. Equipe
 
