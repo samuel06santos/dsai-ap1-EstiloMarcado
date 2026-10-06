@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Observable, switchMap } from 'rxjs';
 import { AuthService } from './auth.service';
+import { formatarData as dataLocal, formatarDataHora as dataHoraLocal } from './data-apresentacao';
 import { EstabelecimentoService, HorarioDisponivel, Profissional, ServicoPublico } from './estabelecimento.service';
 
 interface Solicitacao { id: number; unidadeId: number; servicoId: number; profissionalId: number | null;
@@ -22,16 +23,6 @@ interface Relatorio { geradoEm: string; fusoHorario: string; total: Indicadores;
 interface Evento { id: number; tipo: string; ocorridoEm: string; estadoAnterior: string | null;
   estadoNovo: string; inicioAnterior: string | null; inicioNovo: string; }
 interface PreferenciasNotificacao { lembretes: boolean; avisosLista: boolean; }
-
-function dataLocal(valor: string): string {
-  const partes = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor);
-  return partes ? `${partes[3]}/${partes[2]}/${partes[1]}` : valor;
-}
-
-function dataHoraLocal(valor: string): string {
-  const partes = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(valor);
-  return partes ? `${partes[3]}/${partes[2]}/${partes[1]} às ${partes[4]}:${partes[5]}` : valor;
-}
 
 const formatadoresInstante = new Map<string, Intl.DateTimeFormat>();
 
@@ -291,7 +282,7 @@ export class ListaEsperaComponent {
       <p class="muted-copy">Novidades sobre seus agendamentos e ofertas de vaga.</p>
       <div class="user-list">
       @for (item of itens(); track item.id) {
-        <article><div><strong>{{ item.tipo }}</strong><small>{{ item.criadoEm }} ·
+        <article><div><strong>{{ item.tipo }}</strong><small>{{ instanteLocal(item.criadoEm) }} ·
           {{ item.lidoEm ? 'Lida' : 'Não lida' }}</small></div>
           @if (!item.lidoEm) { <button class="button ghost small" type="button"
             (click)="ler(item.id)">Marcar como lida</button> }
@@ -303,6 +294,7 @@ export class ListaEsperaComponent {
   </div>`
 })
 export class NotificacoesComponent {
+  readonly instanteLocal = instanteLocal;
   private readonly api = inject(OperacaoApi);
   readonly itens = signal<Notificacao[]>([]);
   readonly erro = signal('');
@@ -332,9 +324,10 @@ export class NotificacoesComponent {
       <p class="muted-copy">Eventos deste atendimento, do mais antigo ao mais recente.</p>
       <div class="user-list">
       @for (evento of eventos(); track evento.id) {
-        <article><div><strong>{{ evento.tipo }}</strong><small>{{ evento.ocorridoEm }} ·
+        <article><div><strong>{{ evento.tipo }}</strong><small>{{ instanteLocal(evento.ocorridoEm) }} ·
           {{ evento.estadoAnterior || 'Novo' }} → {{ evento.estadoNovo }}</small>
-          <small>Horário: {{ evento.inicioAnterior || '—' }} → {{ evento.inicioNovo }}</small></div></article>
+          <small>Horário: {{ evento.inicioAnterior ? dataHoraLocal(evento.inicioAnterior) : '—' }}
+            → {{ dataHoraLocal(evento.inicioNovo) }}</small></div></article>
       } @empty { <p class="muted-copy">Nenhum evento encontrado.</p> }
     </div></section>
     <a routerLink="/meus-agendamentos" class="button ghost">Voltar aos agendamentos</a>
@@ -342,6 +335,8 @@ export class NotificacoesComponent {
   </div>`
 })
 export class HistoricoAgendamentoComponent {
+  readonly instanteLocal = instanteLocal;
+  readonly dataHoraLocal = dataHoraLocal;
   private readonly api = inject(OperacaoApi);
   private readonly rota = inject(ActivatedRoute);
   readonly id = Number(this.rota.snapshot.paramMap.get('id'));
@@ -609,7 +604,7 @@ export class FilaEquipeComponent {
           representam um retrato de agora e não são distribuídas por dia.</p>
         <h3>Por dia</h3><div class="user-list">
           @for (dia of r.dias; track dia.data) {
-            <article><strong>{{ dia.data }}</strong><span>Agendados {{ dia.indicadores.agendados }} ·
+            <article><strong>{{ dataLocal(dia.data) }}</strong><span>Agendados {{ dia.indicadores.agendados }} ·
               Confirmados {{ dia.indicadores.confirmados }} · Cancelados {{ dia.indicadores.cancelados }} ·
               Encaixes {{ dia.indicadores.encaixes }}</span></article>
           }
@@ -620,6 +615,7 @@ export class FilaEquipeComponent {
   </div>`
 })
 export class RelatorioOperacionalComponent {
+  readonly dataLocal = dataLocal;
   private readonly api = inject(OperacaoApi);
   private readonly auth = inject(AuthService);
   private readonly catalogo = inject(EstabelecimentoService);

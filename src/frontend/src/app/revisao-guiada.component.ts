@@ -6,6 +6,7 @@ import { Agendamento, AgendamentoApi } from './agendamento.service';
 import { chaveIdempotencia, lerRascunho, limparChaveIdempotencia,
   RascunhoAgendamento, retornoRevisaoSeguro } from './agendamento-rascunho';
 import { AuthService } from './auth.service';
+import { formatarDataHora } from './data-apresentacao';
 import { EstabelecimentoService, Filial, ServicoPublico } from './estabelecimento.service';
 
 @Component({
@@ -33,7 +34,7 @@ import { EstabelecimentoService, Filial, ServicoPublico } from './estabeleciment
           <h2>Agendamento #{{ reservado.id }}</h2>
           <p>Status: <strong>{{ reservado.status }}</strong>.</p>
           <p>{{ reservado.servicoNome }} com {{ reservado.profissionalNome ?? nomeProfissional() }}
-            em {{ reservado.inicio.slice(0, 16).replace('T', ' às ') }}
+            em {{ formatarDataHora(reservado.inicio) }}
             ({{ reservado.fusoHorario }}).</p>
           <p>Filial: {{ reservado.unidadeNome ?? filial()?.nome }} · Valor acordado:
             {{ reservado.precoAcordado | currency:'BRL' }}</p>
@@ -74,7 +75,7 @@ import { EstabelecimentoService, Filial, ServicoPublico } from './estabeleciment
                 <dd><a [routerLink]="['/unidades', filial()!.id]" [queryParams]="parametrosVoltar(1)">Alterar</a></dd></div>
               <div><dt>Profissional</dt><dd>{{ nomeProfissional() }}</dd>
                 <dd><a [routerLink]="['/unidades', filial()!.id]" [queryParams]="parametrosVoltar(2)">Alterar</a></dd></div>
-              <div><dt>Dia e horário</dt><dd>{{ rascunho()!.inicio.slice(0, 16).replace('T', ' às ') }}</dd>
+              <div><dt>Dia e horário</dt><dd>{{ formatarDataHora(rascunho()!.inicio) }}</dd>
                 <dd><a [routerLink]="['/unidades', filial()!.id]" [queryParams]="parametrosVoltar(3)">Alterar</a></dd></div>
               <div><dt>Fuso horário</dt><dd>{{ filial()!.fusoHorario }}</dd></div>
               <div><dt>Duração</dt><dd>{{ servico()!.duracaoMinutos }} minutos</dd></div>
@@ -104,6 +105,7 @@ import { EstabelecimentoService, Filial, ServicoPublico } from './estabeleciment
   `
 })
 export class RevisaoAgendamentoComponent implements OnInit {
+  readonly formatarDataHora = formatarDataHora;
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly estabelecimentos = inject(EstabelecimentoService);

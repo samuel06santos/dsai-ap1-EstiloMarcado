@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Agendamento, AgendamentoApi } from './agendamento.service';
 import { AuthService } from './auth.service';
+import { formatarDataHora } from './data-apresentacao';
 import { EstabelecimentoService, HorarioDisponivel } from './estabelecimento.service';
 
 function diaAtual(fuso = 'America/Sao_Paulo'): string {
@@ -26,7 +27,7 @@ function mensagem(erro: unknown): string { return AuthService.mensagemErro(erro)
         @if (destacado(); as item) {
           <article class="notice success" aria-label="Agendamento solicitado">
             <strong>Agendamento #{{ item.id }} · {{ item.status }}</strong><br>
-            {{ item.servicoNome }} em {{ item.inicio.slice(0, 16).replace('T', ' às ') }}<br>
+            {{ item.servicoNome }} em {{ formatarDataHora(item.inicio) }}<br>
             {{ item.unidadeNome ?? ('Filial #' + item.unidadeId) }} ·
             {{ item.profissionalNome ?? ('Profissional #' + item.profissionalId) }}<br>
             <a [routerLink]="['/agendamentos', item.id, 'historico']">Ver histórico deste agendamento</a>
@@ -55,7 +56,7 @@ function mensagem(erro: unknown): string { return AuthService.mensagemErro(erro)
           @for (item of itens(); track item.id) {
             <article>
               <div><strong>{{ item.servicoNome }}</strong>
-                <small>{{ item.inicio.slice(0, 16).replace('T', ' ') }} ·
+                <small>{{ formatarDataHora(item.inicio) }} ·
                   {{ item.status }} · {{ item.precoAcordado | currency:'BRL' }}</small>
                 <small>{{ item.unidadeNome ?? ('Filial #' + item.unidadeId) }}
                   · {{ item.profissionalNome ?? ('#' + item.profissionalId) }}</small>
@@ -98,6 +99,7 @@ function mensagem(erro: unknown): string { return AuthService.mensagemErro(erro)
   `
 })
 export class MeusAgendamentosComponent implements OnInit {
+  readonly formatarDataHora = formatarDataHora;
   private readonly api = inject(AgendamentoApi);
   private readonly estabelecimentos = inject(EstabelecimentoService);
   private readonly route = inject(ActivatedRoute);

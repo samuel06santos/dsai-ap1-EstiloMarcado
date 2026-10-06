@@ -4,6 +4,7 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { catchError, forkJoin, of } from 'rxjs';
+import { formatarData, formatarDataHora } from './data-apresentacao';
 import { ConsultaHorarios, EstabelecimentoService, Filial, HorarioDisponivel, ServicoPublico } from './estabelecimento.service';
 
 type Passo = 1 | 2 | 3;
@@ -112,7 +113,7 @@ interface DiaResumo { data: string; vagas: number | null }
                   </button>
                 }
               </div>
-              <label class="booking-date-label">Outra data, até {{ dataMaxima() }}
+              <label class="booking-date-label">Outra data, até {{ formatarData(dataMaxima()) }}
                 <input type="date" name="data" [(ngModel)]="dataSelecionada"
                   [min]="dataMinima()" [max]="dataMaxima()" (change)="consultarHorarios()">
               </label>
@@ -164,7 +165,7 @@ interface DiaResumo { data: string; vagas: number | null }
                   ? profissionalSelecionado === null ? 'Qualquer disponível' : nomeProfissional(profissionalSelecionado)
                   : 'Escolha uma opção' }}</dd></div>
               <div><dt>Dia e horário</dt><dd>{{ selecionado()
-                ? selecionado()!.inicio.slice(0, 16).replace('T', ' às ')
+                ? formatarDataHora(selecionado()!.inicio)
                 : 'Escolha um horário' }}</dd></div>
             </dl>
           </aside>
@@ -193,6 +194,8 @@ interface DiaResumo { data: string; vagas: number | null }
   `
 })
 export class FilialPublicaComponent implements OnInit {
+  readonly formatarData = formatarData;
+  readonly formatarDataHora = formatarDataHora;
   private readonly api = inject(EstabelecimentoService);
   private readonly route = inject(ActivatedRoute);
   readonly passos = ['Serviço', 'Profissional', 'Dia e horário', 'Revisão'];
@@ -414,7 +417,8 @@ export class FilialPublicaComponent implements OnInit {
   dataMaxima(): string { return this.somarDias(this.dataMinima(), 60); }
 
   rotuloDia(data: string): string {
-    return new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: 'short',
+    return new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit',
+      year: 'numeric',
       timeZone: 'UTC' }).format(new Date(data + 'T12:00:00Z'));
   }
 

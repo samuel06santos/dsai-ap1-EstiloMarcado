@@ -376,7 +376,7 @@ export class MinhaDisponibilidadeComponent implements OnInit {
         <div class="agenda-list">
           @for (bloqueio of bloqueiosFilial(); track bloqueio.id) {
             <article class="agenda-item">
-              <div><h3>{{ bloqueio.data }} · {{ bloqueio.diaInteiro ? 'Dia inteiro'
+              <div><h3>{{ formatarData(bloqueio.data) }} · {{ bloqueio.diaInteiro ? 'Dia inteiro'
                 : bloqueio.horaInicio!.slice(0, 5) + ' – ' + bloqueio.horaFim!.slice(0, 5) }}</h3>
                 <p>{{ bloqueio.motivo || 'Sem motivo informado' }}</p></div>
               <button type="button" class="button ghost small" (click)="removerBloqueio(bloqueio.id)">Remover</button>
