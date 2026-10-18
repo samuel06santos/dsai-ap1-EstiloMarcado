@@ -67,6 +67,18 @@ de autorização usa a sessão web já existente; se necessário, conduz ao logi
 normal por e-mail/senha ou Google e volta ao pedido de autorização. Nenhum
 ID token Firebase, cookie ou senha sai desse fluxo para uma tool MCP.
 
+O formulário de consentimento usa o CSRF vinculado à própria sessão web;
+as chamadas Angular existentes continuam usando o cookie `XSRF-TOKEN`. A
+página de consentimento usa o visual do Estilo Marcado, carrega uma folha de
+estilo própria e informa conta, aplicativo e ações permitidas em linguagem
+clara. Sua CSP permite o formulário no próprio site e, para concluir o fluxo,
+somente a origem do callback loopback validado para aquele pedido. No nginx,
+`form-action` admite `127.0.0.1`, `localhost` e `::1` com porta dinâmica; a
+CSP específica da página restringe a porta à URI registrada. Sem essa
+permissão, o navegador bloqueia o retorno ao cliente mesmo após o clique em
+autorizar. O nginx do frontend deve manter `/oauth/` à frente da regra de
+arquivos estáticos, inclusive para servir `/oauth/consent.css` pelo backend.
+
 1. O cliente MCP descobre o recurso protegido e os endpoints de autorização,
    cria `state` e `code_verifier`, e abre a autorização no navegador com
    `code_challenge` S256, `client_id`, `redirect_uri`, escopos e recurso MCP.
@@ -316,7 +328,9 @@ revogação, respostas anônimas e confirmação humana das escritas.
 
 Na implementação, adicionar à raiz do repositório um `.mcp.json` **versionado**
 com o servidor `estilo_marcado`, transporte HTTP e URL HTTPS pública do
-endpoint MCP, configurável por ambiente. Não colocar JWT, cookie, segredo de
+endpoint MCP. A configuração versionada aponta para produção; o ambiente local
+usa uma substituição temporária na configuração de cada cliente, nunca um
+Bearer fixo. Não colocar JWT, cookie, segredo de
 cliente nem `Authorization` estático nesse arquivo. O cliente MCP deve obter
 e guardar seu token pelo fluxo OAuth/PKCE acima; a conexão do arquivo não
 autentica o usuário por si só.
@@ -350,6 +364,15 @@ configuração Angular mantém a rota de checkout e o retorno ao login; CSP e
 política de proxy devem permitir somente as origens necessárias. Chaves de
 assinatura, URLs públicas, audiência, origem permitida e limites ficam em
 configuração externa, com rotação e checklist de deploy/rollback documentados.
+
+No Compose de desenvolvimento, o transporte MCP e sua descoberta OAuth são
+acessados diretamente em `http://127.0.0.1:8000/mcp`, enquanto o emissor OAuth
+e o login web ficam em `http://localhost:4200`. O proxy de desenvolvimento
+Angular não intermedeia o transporte MCP: o fluxo HTTP do FastMCP requer
+resposta contínua e a tentativa de encaminhá-lo por esse proxy falhou no
+handshake. Antes de versionar as configurações dos agentes, restaurar a URL
+HTTPS de produção em `.codex/config.toml` e `opencode.json`. Em produção,
+somente o nginx publica o MCP por HTTPS.
 
 ## Critérios de aceitação e testes
 
