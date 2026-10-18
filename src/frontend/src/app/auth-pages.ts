@@ -89,6 +89,10 @@ export class LoginComponent implements OnInit {
   }
 
   private redirecionar(sessao: { perfil: Perfil }): void {
+        if (sessao.perfil === 'CLIENTE' && this.retornoSeguro?.startsWith('/oauth/authorize?')) {
+          window.location.assign(this.retornoSeguro);
+          return;
+        }
         const destino = sessao.perfil === 'PROFISSIONAL' ? '/profissional/agenda'
           : sessao.perfil === 'ADMINISTRADOR' ? '/administracao/estabelecimento'
           : sessao.perfil === 'RECEPCAO' ? '/equipe/agendamentos' : '/';
@@ -107,9 +111,8 @@ export class LoginComponent implements OnInit {
         <div style="display: grid; gap: 1.25rem; margin-top: 1rem;">
           <div class="notice success"><strong>Confira seu e-mail.</strong><br>Enviamos as instrucoes de ativacao caso o endereco esteja disponivel.</div>
           @if (retornoSeguro) {
-            <p>Depois de confirmar seu e-mail, volte à revisão para retomar a escolha. O link vale por 30 minutos;
-              se expirar, escolha outro horário na filial.</p>
-            <a class="button ghost" [attr.href]="retornoSeguro">Voltar à revisão</a>
+            <p>Depois de confirmar seu e-mail, entre na conta para continuar. Alguns links têm prazo de validade.</p>
+            <a class="button ghost" [attr.href]="retornoSeguro">Continuar</a>
           }
           <a class="button ghost" routerLink="/entrar"
             [queryParams]="retornoSeguro ? { retorno: retornoSeguro } : {}">Voltar para o login</a>

@@ -54,6 +54,11 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Python / FastMCP
+__pycache__/
+*.pyc
+.venv/
+
 # Relatórios e artefatos de testes frontend
 coverage/
 .nyc_output/
@@ -96,6 +101,8 @@ temp/
 # Rascunhos de especificações (nunca versionar)
 /SPEC/temp/
 /deploy/firebase/
+/deploy/mcp/private.pem
+/tests/mcp/.e2e-tmp/
 
 .opencode/
 .agents/

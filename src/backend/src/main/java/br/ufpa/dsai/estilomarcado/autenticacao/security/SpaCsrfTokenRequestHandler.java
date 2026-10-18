@@ -23,7 +23,7 @@ final class SpaCsrfTokenRequestHandler implements CsrfTokenRequestHandler {
     public void handle(HttpServletRequest request, HttpServletResponse response,
                        Supplier<CsrfToken> csrfToken) {
         tokenMascarado.handle(request, response, csrfToken);
-        csrfToken.get();
+        csrfToken.get().getToken();
     }
 
     @Override

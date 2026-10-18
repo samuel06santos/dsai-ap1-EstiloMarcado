@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import br.ufpa.dsai.estilomarcado.agendamento.repository.AtendimentoRepository;
+import br.ufpa.dsai.estilomarcado.agendamento.PreReservaOcupacao;
 import br.ufpa.dsai.estilomarcado.catalogo.api.exception.RecursoNaoEncontradoException;
 import br.ufpa.dsai.estilomarcado.catalogo.model.Profissional;
 import br.ufpa.dsai.estilomarcado.catalogo.model.Servico;
@@ -30,16 +31,18 @@ public class MotorDisponibilidadeService {
     private final UnidadeRepository unidades;
     private final ServicoRepository servicos;
     private final AtendimentoRepository atendimentos;
+    private final PreReservaOcupacao preReservas;
     private final CalculadoraJanelas janelas;
     private final CalculadoraHorarios calculadora;
     private final Clock clock;
 
     public MotorDisponibilidadeService(UnidadeRepository unidades, ServicoRepository servicos,
-            AtendimentoRepository atendimentos, CalculadoraJanelas janelas,
+            AtendimentoRepository atendimentos, PreReservaOcupacao preReservas, CalculadoraJanelas janelas,
             CalculadoraHorarios calculadora, Clock clock) {
         this.unidades = unidades;
         this.servicos = servicos;
         this.atendimentos = atendimentos;
+        this.preReservas = preReservas;
         this.janelas = janelas;
         this.calculadora = calculadora;
         this.clock = clock;
@@ -78,12 +81,18 @@ public class MotorDisponibilidadeService {
                         .stream().collect(Collectors.groupingBy(a -> a.getProfissional().getId(),
                                 Collectors.mapping(a -> new Ocupacao(a.getInicio(),
                                         a.getDuracaoMinutos(), a.getIntervaloMinutos()), Collectors.toList())));
+        Map<Long, List<Ocupacao>> ocupacoesProvisorias = preReservas.ativas(
+                elegiveis.stream().map(Profissional::getId).toList(),
+                data.atStartOfDay(), data.plusDays(1).atStartOfDay());
         Map<Long, List<JanelaTrabalho>> janelasDoDia = janelas.calcularEmLote(elegiveis, data);
 
         List<HorarioDisponivelResponse> horarios = elegiveis.stream()
                 .flatMap(profissional -> calculadora.calcular(data, fuso, agora,
                                 janelasDoDia.getOrDefault(profissional.getId(), List.of()),
-                                ocupacoes.getOrDefault(profissional.getId(), List.of()),
+                                java.util.stream.Stream.concat(
+                                        ocupacoes.getOrDefault(profissional.getId(), List.<Ocupacao>of()).stream(),
+                                        ocupacoesProvisorias.getOrDefault(profissional.getId(), List.<Ocupacao>of()).stream())
+                                        .toList(),
                                 servico.getDuracaoMinutos(), intervalo(servico))
                         .stream().map(inicio -> new HorarioDisponivelResponse(profissional.getId(),
                                 inicio, inicio.plusMinutes(servico.getDuracaoMinutos()))))

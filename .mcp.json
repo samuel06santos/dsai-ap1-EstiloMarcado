@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "estilo_marcado": {
+      "type": "http",
+      "url": "https://estilomarcado.samuelsantos.qzz.io/mcp"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+[mcp_servers.estilo_marcado]
+url = "https://estilomarcado.samuelsantos.qzz.io/mcp"
+auth = "oauth"
+default_tools_approval_mode = "prompt"
+
+[mcp_servers.estilo_marcado.tools.listar_filiais]
+approval_mode = "approve"
+
+[mcp_servers.estilo_marcado.tools.listar_servicos]
+approval_mode = "approve"
+
+[mcp_servers.estilo_marcado.tools.consultar_horarios]
+approval_mode = "approve"
+
+[mcp_servers.estilo_marcado.tools.meus_agendamentos]
+approval_mode = "approve"
+
+[mcp_servers.estilo_marcado.tools.detalhar_agendamento]
+approval_mode = "approve"
+
+[mcp_servers.estilo_marcado.tools.horarios_para_reagendar]
+approval_mode = "approve"
+
+[mcp_servers.estilo_marcado.tools.minha_lista_espera]
+approval_mode = "approve"

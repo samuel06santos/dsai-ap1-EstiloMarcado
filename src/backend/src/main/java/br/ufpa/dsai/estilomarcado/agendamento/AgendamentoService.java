@@ -47,6 +47,7 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public class AgendamentoService {
     private final AtendimentoRepository atendimentos;
+    private final PreReservaOcupacao preReservas;
     private final ClienteRepository clientes;
     private final UsuarioRepository usuarios;
     private final ProfissionalRepository profissionais;
@@ -60,12 +61,13 @@ public class AgendamentoService {
     private final ObjectMapper mapper;
     private final NotificacaoService notificacoes;
 
-    public AgendamentoService(AtendimentoRepository atendimentos, ClienteRepository clientes,
+    public AgendamentoService(AtendimentoRepository atendimentos, PreReservaOcupacao preReservas, ClienteRepository clientes,
             UsuarioRepository usuarios, ProfissionalRepository profissionais, ServicoRepository servicos,
             UsuarioAtual atual, CalculadoraJanelas janelas, CalculadoraHorarios horarios,
             JdbcTemplate jdbc, Clock clock, EntityManager entityManager, ObjectMapper mapper,
             NotificacaoService notificacoes) {
         this.atendimentos = atendimentos;
+        this.preReservas = preReservas;
         this.clientes = clientes;
         this.usuarios = usuarios;
         this.profissionais = profissionais;
@@ -130,6 +132,7 @@ public class AgendamentoService {
         }
         Profissional profissional = profissionais.bloquear(pedido.profissionalId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("profissional nao encontrado"));
+        preReservas.liberarExpiradas(profissional.getId());
         Servico servico = servicos.findById(pedido.servicoId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("servico nao encontrado"));
         validarCatalogo(unidadeId, profissional, servico);
@@ -224,6 +227,9 @@ public class AgendamentoService {
                 .stream().filter(item -> !item.getId().equals(id))
                 .map(item -> new Ocupacao(item.getInicio(), item.getDuracaoMinutos(), item.getIntervaloMinutos()))
                 .toList();
+        ocupacoes = java.util.stream.Stream.concat(ocupacoes.stream(),
+                preReservas.ativas(List.of(p.getId()), data.atStartOfDay(), data.plusDays(1).atStartOfDay())
+                        .getOrDefault(p.getId(), List.of()).stream()).toList();
         List<HorarioDisponivelResponse> disponiveis = horarios.calcular(data, fuso, clock.instant(),
                         janelas.calcular(p, data), ocupacoes, a.getDuracaoMinutos(), a.getIntervaloMinutos())
                 .stream().map(inicio -> new HorarioDisponivelResponse(p.getId(), inicio,
@@ -342,6 +348,7 @@ public class AgendamentoService {
         Atendimento preliminar = atendimentos.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("agendamento nao encontrado"));
         profissionais.bloquear(preliminar.getProfissional().getId()).orElseThrow();
+        preReservas.liberarExpiradas(preliminar.getProfissional().getId());
         Atendimento bloqueado = atendimentos.bloquear(id).orElseThrow();
         entityManager.refresh(bloqueado);
         return bloqueado;
@@ -368,6 +375,10 @@ public class AgendamentoService {
         List<Ocupacao> ocupacoes = atendimentos.findAllById(ids).stream()
                 .filter(a -> !a.getId().equals(ignorarId))
                 .map(a -> new Ocupacao(a.getInicio(), a.getDuracaoMinutos(), a.getIntervaloMinutos())).toList();
+        ocupacoes = java.util.stream.Stream.concat(ocupacoes.stream(),
+                preReservas.ativas(List.of(p.getId()), inicio.toLocalDate().atStartOfDay(),
+                        inicio.toLocalDate().plusDays(1).atStartOfDay())
+                        .getOrDefault(p.getId(), List.of()).stream()).toList();
         if (!horarios.calcular(inicio.toLocalDate(), fuso, clock.instant(),
                 janelas.calcular(p, inicio.toLocalDate()), ocupacoes, duracao, intervalo).contains(inicio)) {
             throw new AgendamentoConflitoException("HORARIO_INDISPONIVEL", "horario indisponivel");

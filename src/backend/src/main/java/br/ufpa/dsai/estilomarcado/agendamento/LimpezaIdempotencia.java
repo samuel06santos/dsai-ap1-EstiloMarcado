@@ -20,5 +20,8 @@ public class LimpezaIdempotencia {
     public void limpar() {
         jdbc.update("delete from agendamento_idempotencia where expira_em < ?",
                 java.sql.Timestamp.from(clock.instant()));
+        jdbc.update("delete from mcp_confirmacao_consumida where consumido_em < clock_timestamp()-interval '1 day'");
+        jdbc.update("delete from mcp_codigo_oauth where expira_em < clock_timestamp()-interval '1 day'");
+        jdbc.update("delete from mcp_token_revogado where expira_em < clock_timestamp()");
     }
 }

@@ -15,12 +15,14 @@ import { AdministracaoAgendaComponent, MinhaDisponibilidadeComponent } from './a
 import { MeusAgendamentosComponent } from './app/agendamento-pages';
 import { AgendaOperacionalComponent } from './app/agenda-operacional.component';
 import { FiliaisPublicasComponent } from './app/filiais-publicas.component';
+import { CheckoutComponent } from './app/checkout.component';
 import { FilaEquipeComponent, HistoricoAgendamentoComponent, ListaEsperaComponent, NotificacoesComponent,
   RelatorioOperacionalComponent } from './app/operacao-pages';
 
 const routes: Routes = [
   { path: '', component: HomeComponent },
   { path: 'filiais', component: FiliaisPublicasComponent },
+  { path: 'checkout', component: CheckoutComponent },
   { path: 'entrar', component: LoginComponent },
   { path: 'cadastro', component: CadastroComponent },
   { path: 'ativar', component: AtivacaoComponent },

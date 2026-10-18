@@ -738,3 +738,34 @@ ignorados. A execução levou 13,91 s (18,8 arquivos/s; 1.923,6 linhas/s).
 | **Total** | **261** | **2.847** | **563** | **23.342** |
 
 Essa contagem inclui os testes versionados, as migrações SQL e a seed.
+
+## 19. Servidor MCP remoto
+
+O servidor FastMCP em `src/mcp` oferece descoberta pública, leitura da agenda
+própria com autorização OAuth do Estilo Marcado e operações de escrita sujeitas
+à confirmação do agente. O arquivo `.mcp.json` conecta o agente ao endpoint
+HTTPS; `.claude/settings.json`, `opencode.json` e `.codex/config.toml`
+permitem leituras e pedem aprovação antes das escritas em cada cliente.
+O login do site continua por e-mail/senha ou Google e usa a sessão HTTP; o
+cliente MCP recebe um JWT separado após código de autorização e PKCE.
+Pré-reservas anônimas duram dez minutos e são concluídas em `/checkout`.
+Veja [o guia de implantação](deploy/README.md#mcp-remoto) e a
+[SPEC](SPEC/2026-10-17-servidor-fastmcp-e-checkout-de-pre-reserva.md).
+
+### Uso local com Docker
+
+No `.env` local, gere `MCP_SERVICE_KEY` e `MCP_CHECKOUT_KEY` separadamente com
+`python -c "import base64,secrets; print(base64.b64encode(secrets.token_bytes(32)).decode())"`.
+O checkout exige **exatamente 32 bytes em Base64 padrão**. Use
+`MCP_ISSUER=http://localhost:4200` e
+`MCP_AUDIENCE=http://127.0.0.1:8000/mcp`; inicie com
+`docker compose up -d --build backend frontend mcp` e aguarde o backend responder
+em `http://localhost:8080/actuator/health`.
+
+Configure a URL do MCP no cliente como `http://127.0.0.1:8000/mcp` durante o
+desenvolvimento. A porta `8000` atende o transporte MCP e sua descoberta OAuth;
+o login e a emissão do token usam o site em `http://localhost:4200`. O proxy de
+desenvolvimento do Angular não é usado para o transporte MCP. Em OpenCode, altere
+temporariamente `opencode.json`; em Codex, `.codex/config.toml`. Faça
+`opencode mcp auth estilo_marcado` ou `codex mcp login estilo_marcado`, conforme
+o cliente, e restaure as URLs HTTPS antes de versionar a configuração de produção.

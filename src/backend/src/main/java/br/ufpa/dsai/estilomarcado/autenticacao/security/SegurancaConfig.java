@@ -21,11 +21,17 @@ import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.security.web.csrf.CsrfTokenRepository;
+import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 import org.springframework.session.web.http.CookieSerializer;
 import org.springframework.session.web.http.DefaultCookieSerializer;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 import tools.jackson.databind.ObjectMapper;
 import br.ufpa.dsai.estilomarcado.autenticacao.repository.UsuarioRepository;
@@ -69,6 +75,22 @@ public class SegurancaConfig {
                                             UsuarioRepository users) throws Exception {
         CookieCsrfTokenRepository csrfRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
         csrfRepository.setCookiePath("/");
+        HttpSessionCsrfTokenRepository oauthCsrfRepository = new HttpSessionCsrfTokenRepository();
+        CsrfTokenRepository csrfPorRota = new CsrfTokenRepository() {
+            private CsrfTokenRepository para(HttpServletRequest request) {
+                return "/oauth/authorize".equals(request.getRequestURI())
+                        ? oauthCsrfRepository : csrfRepository;
+            }
+            @Override public CsrfToken generateToken(HttpServletRequest request) {
+                return para(request).generateToken(request);
+            }
+            @Override public void saveToken(CsrfToken token, HttpServletRequest request, HttpServletResponse response) {
+                para(request).saveToken(token, request, response);
+            }
+            @Override public CsrfToken loadToken(HttpServletRequest request) {
+                return para(request).loadToken(request);
+            }
+        };
 
         AuthenticationEntryPoint entrada = (request, response, ex) ->
                 RespostaSeguranca.escrever(objectMapper, response, 401, "autenticacao necessaria");
@@ -77,7 +99,8 @@ public class SegurancaConfig {
 
         http
                 .csrf(csrf -> csrf
-                        .csrfTokenRepository(csrfRepository)
+                        .ignoringRequestMatchers("/api/mcp/internal/**", "/oauth/token", "/oauth/register")
+                        .csrfTokenRepository(csrfPorRota)
                         .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler()))
                 .cors(cors -> { })
                 .securityContext(context -> context
@@ -91,6 +114,13 @@ public class SegurancaConfig {
                         .accessDeniedHandler(negado))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/.well-known/oauth-authorization-server",
+                                "/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-protected-resource", "/oauth/jwks",
+                                "/oauth/register", "/oauth/token").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/oauth/authorize").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/oauth/consent.css").permitAll()
+                        .requestMatchers("/api/mcp/internal/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/checkout/pre-reservas/consulta").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/autenticacao/sessao").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/autenticacao/contas/metodos").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/autenticacao/contas/google").authenticated()

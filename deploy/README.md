@@ -306,6 +306,8 @@ docker compose --env-file deploy/.env.production -f docker-compose.prod.yml down
   opcao e reconstrua a imagem.
 - **Fontes nao carregam:** a CSP precisa manter `https://fonts.gstatic.com` em
   `font-src` (arquivos `.woff2`) e `https://fonts.googleapis.com` em `style-src`.
+  O perfil de producao usa `fonts: false` no Angular para que a compilacao nao
+  dependa de acesso ao Google Fonts; o navegador carrega a folha remota.
 - **"Continuar com Google" falha e o console informa bloqueio de
   `https://apis.google.com/js/api.js`:** atualize o vhost nginx do host com a
   versao deste repositorio. O Firebase Auth precisa carregar esse script,
@@ -324,6 +326,59 @@ docker compose --env-file deploy/.env.production -f docker-compose.prod.yml down
   o Spring Security adiciona os mesmos headers nas respostas da API.
 
 ## Resumo dos arquivos
+
+### MCP remoto
+
+O serviço `mcp` expõe somente `127.0.0.1:8082` no host; o nginx publica
+`https://estilomarcado.samuelsantos.qzz.io/mcp`. O backend e o MCP usam a
+mesma `MCP_SERVICE_KEY`; a chave RSA de assinatura fica somente no backend
+em `deploy/mcp/private.pem`. Preencha `MCP_CHECKOUT_KEY` e `MCP_SERVICE_KEY`
+com 32 bytes aleatórios codificados em base64 antes do deploy. Copie o vhost
+nginx atualizado e recarregue-o. A chave pública fica em `/oauth/jwks`.
+Gere a chave privada no servidor com
+`openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out deploy/mcp/private.pem`;
+esse arquivo está ignorado pelo Git.
+O processo do backend roda como UID 100/GID 101; no host, ajuste
+`deploy/mcp` e `private.pem` para esse proprietário e permissões 0700/0600,
+respectivamente, para que a chave montada seja legível somente pelo backend.
+
+O agente lê `.mcp.json` da raiz. As sete consultas estão em `allow` e as três
+alterações em `ask` em `.claude/settings.json`. A aprovação do cliente MCP é
+necessária em cada intenção de escrita. Além da regra `ask`, as tools pedem
+confirmação interativa via elicitação MCP; se o cliente não suportar a troca,
+a operação falha sem alterar a agenda. A resposta fica vinculada por cinco
+minutos aos dados revisados e ao Bearer da chamada. Cancelamento e reagendamento
+consomem um nonce de uso único no PostgreSQL.
+
+OpenCode usa `opencode.json` e Codex usa `.codex/config.toml` em projeto
+confiável; ambos estão versionados com a mesma URL e aprovação nas escritas.
+Depois do deploy, use `opencode mcp auth estilo_marcado` ou
+`codex mcp login estilo_marcado` no cliente correspondente. O arquivo
+`.mcp.json` continua disponível para clientes que leem esse formato.
+
+Ao chamar uma leitura privada sem autorização, o cliente recebe
+`AUTENTICACAO_MCP_NECESSARIA`. No cliente MCP, inicie a autorização OAuth do
+servidor `estilo_marcado`. O cliente descobre `/.well-known/oauth-protected-resource/mcp`
+e `/.well-known/oauth-authorization-server`, registra uma URI de retorno local,
+abre `/oauth/authorize` com PKCE S256 e recebe o código no callback. Após login
+normal no Estilo Marcado e consentimento, **o cliente** troca o código em
+`/oauth/token`; ele passa então a enviar `Authorization: Bearer <JWT>` em cada
+requisição `/mcp`. A sessão `SESSION` permanece só no navegador. Verifique no
+cliente uma chamada privada bem-sucedida depois desse retorno: a página de
+consentimento, sozinha, não atualiza o cabeçalho HTTP do cliente. O JWT dura
+cinco minutos; reautorize ao expirar. O recurso não aceita token Firebase.
+
+Sem Bearer, `criar_agendamento` cria pré-reserva de dez minutos após aprovação
+da tool. O link HTTPS contém token opaco no fragmento, que não autentica o
+usuário. No site, o cliente entra com a conta existente, revisa e confirma via
+POST com sessão e CSRF. O backend revalida a agenda e cria `AGENDADO`; a equipe
+continua responsável por passar a `CONFIRMADO`. Pré-reserva expirada deixa de
+ocupar o horário imediatamente pela comparação com o relógio do banco; a
+limpeza só remove registros antigos e não determina a validade.
+
+Para trocar a chave RSA, aguarde os cinco minutos de vida máxima dos JWTs
+antes de substituir a chave e reiniciar. Revogar um cliente em `/oauth/revoke` invalida seus JWTs ainda
+ativos pela versão de autorização.
 
 | Arquivo | Destino no servidor |
 | --- | --- |

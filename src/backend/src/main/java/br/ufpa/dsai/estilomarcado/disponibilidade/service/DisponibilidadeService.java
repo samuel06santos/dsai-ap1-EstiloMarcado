@@ -81,11 +81,20 @@ public class DisponibilidadeService {
     private final UsuarioAtual usuarioAtual;
     private final AuditoriaService auditoria;
     private final EntityManager entityManager;
+    private final br.ufpa.dsai.estilomarcado.agendamento.PreReservaOcupacao preReservas;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
+    private final java.time.Clock clock;
 
     private void travarProfissional(Profissional profissional) {
         profissionais.bloquear(profissional.getId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("profissional nao encontrado"));
         entityManager.refresh(profissional);
+        preReservas.liberarExpiradas(profissional.getId());
+        if (Boolean.TRUE.equals(jdbc.queryForObject("select exists(select 1 from pre_reserva "
+                + "where profissional_id=? and estado='ATIVA' and expira_em>clock_timestamp())",
+                Boolean.class, profissional.getId())))
+            throw new br.ufpa.dsai.estilomarcado.catalogo.api.exception.ConflitoException(
+                    "profissional possui pre-reserva ativa; tente novamente apos a expiracao");
     }
 
     private void travarUnidade(Unidade unidade) {
@@ -104,7 +113,9 @@ public class DisponibilidadeService {
                                   UnidadeRepository unidades,
                                   CalculadoraJanelas calculadora,
                                   UsuarioAtual usuarioAtual,
-                                  AuditoriaService auditoria, EntityManager entityManager) {
+                                  AuditoriaService auditoria, EntityManager entityManager,
+                                  br.ufpa.dsai.estilomarcado.agendamento.PreReservaOcupacao preReservas,
+                                  org.springframework.jdbc.core.JdbcTemplate jdbc, java.time.Clock clock) {
         this.jornadas = jornadas;
         this.excecoes = excecoes;
         this.afastamentos = afastamentos;
@@ -117,6 +128,9 @@ public class DisponibilidadeService {
         this.usuarioAtual = usuarioAtual;
         this.auditoria = auditoria;
         this.entityManager = entityManager;
+        this.preReservas = preReservas;
+        this.jdbc = jdbc;
+        this.clock = clock;
     }
 
     // ------------------------------------------------------------------
@@ -759,7 +773,7 @@ public class DisponibilidadeService {
     }
 
     private LocalDateTime agora(Unidade unidade) {
-        return LocalDateTime.now(ZoneId.of(unidade.getFusoHorario()));
+        return LocalDateTime.ofInstant(clock.instant(), ZoneId.of(unidade.getFusoHorario()));
     }
 
     private String opcional(String valor) {

@@ -51,7 +51,7 @@ PADROES_SENHA = {
     "senha_concreta": re.compile(
         r"(?i)(?<![A-Za-z0-9])"
         r"(?:client_secret|refresh_token|access_token|password|passwd|senha|pwd|secret|api[_-]?key)"
-        r"(?![A-Za-z0-9_])\s*[=:]\s*[\"']?"
+        r"(?![A-Za-z0-9_])[ \t]*[=:][ \t]*[\"']?"
         r"(?P<segredo>[A-Za-z0-9@!#%._+\-]{8,})"
     ),
 }
@@ -101,6 +101,8 @@ def permitido(valor: str) -> bool:
     if baixo in PERMITIDOS or any(m in baixo for m in MARCADORES_INOCUOS):
         return True
     if limpo.startswith(("${", "<", "*")):
+        return True
+    if limpo.startswith(("this.", "self.")):
         return True
     if "REDACTED" in limpo.upper() or "***" in limpo:
         return True

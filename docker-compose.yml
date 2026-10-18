@@ -54,6 +54,11 @@ services:
       AUTH_ADDITIONAL_ADMIN_NAME: ${AUTH_ADDITIONAL_ADMIN_NAME:-Administrador}
       AUTH_BOOTSTRAP_ADMIN_UNIT_ID: ${AUTH_BOOTSTRAP_ADMIN_UNIT_ID:-0}
       AUTH_BOOTSTRAP_ADMIN_UNIT_NAME: ${AUTH_BOOTSTRAP_ADMIN_UNIT_NAME:-Unidade Administrativa}
+      MCP_ISSUER: ${MCP_ISSUER:-http://localhost:4200}
+      MCP_AUDIENCE: ${MCP_AUDIENCE:-http://127.0.0.1:8000/mcp}
+      MCP_PRIVATE_KEY_PATH: ${MCP_PRIVATE_KEY_PATH:-}
+      MCP_CHECKOUT_KEY: ${MCP_CHECKOUT_KEY:-}
+      MCP_SERVICE_KEY: ${MCP_SERVICE_KEY:-}
     command: mvn spring-boot:run -Dspring-boot.run.profiles=docker
     ports:
       - "${BACKEND_PORT}:8080"
@@ -81,10 +86,34 @@ services:
       - "${FRONTEND_PORT}:4200"
     volumes:
       - ./src/frontend:/workspace
+      - ./tests/frontend:/tests/frontend:ro
+      - ./src/frontend:/src/frontend:ro
+      - frontend_node_modules:/src/frontend/node_modules:ro
       - frontend_node_modules:/workspace/node_modules
     depends_on:
       backend:
         condition: service_started
+    networks:
+      - estilo_marcado_network
+
+  mcp:
+    build: ./src/mcp
+    environment:
+      MCP_BACKEND_URL: http://backend:8080
+      MCP_ISSUER: ${MCP_ISSUER:-http://localhost:4200}
+      MCP_AUDIENCE: ${MCP_AUDIENCE:-http://127.0.0.1:8000/mcp}
+      MCP_SERVICE_KEY: ${MCP_SERVICE_KEY:-}
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      backend:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - estilo_marcado_network
 

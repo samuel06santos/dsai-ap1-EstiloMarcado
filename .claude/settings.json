@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__estilo_marcado__listar_filiais",
+      "mcp__estilo_marcado__listar_servicos",
+      "mcp__estilo_marcado__consultar_horarios",
+      "mcp__estilo_marcado__meus_agendamentos",
+      "mcp__estilo_marcado__detalhar_agendamento",
+      "mcp__estilo_marcado__horarios_para_reagendar",
+      "mcp__estilo_marcado__minha_lista_espera"
+    ],
+    "ask": [
+      "mcp__estilo_marcado__criar_agendamento",
+      "mcp__estilo_marcado__cancelar_agendamento",
+      "mcp__estilo_marcado__reagendar_agendamento"
+    ]
+  }
+}

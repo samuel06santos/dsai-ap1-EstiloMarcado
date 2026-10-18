@@ -6,11 +6,19 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Base64;
 import java.util.Map;
+import jakarta.servlet.http.Cookie;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,9 +40,11 @@ import br.ufpa.dsai.estilomarcado.autenticacao.model.PerfilUsuario;
 import br.ufpa.dsai.estilomarcado.autenticacao.model.Usuario;
 import br.ufpa.dsai.estilomarcado.autenticacao.repository.UsuarioRepository;
 import br.ufpa.dsai.estilomarcado.autenticacao.service.FirebaseIdentityService;
+import br.ufpa.dsai.estilomarcado.mcp.McpTokenService;
+import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest(properties = {"app.auth.firebase.enabled=true", "app.auth.firebase.project-id=test-project",
-        "app.auth.firebase.web-api-key=placeholder"})
+        "app.auth.firebase.web-api-key=placeholder", "app.mcp.service-key=test-service-key"})
 @AutoConfigureMockMvc
 @Testcontainers
 class FirebaseAuthenticationIntegrationTest {
@@ -43,6 +53,8 @@ class FirebaseAuthenticationIntegrationTest {
 
     @Autowired MockMvc mvc;
     @Autowired UsuarioRepository users;
+    @Autowired McpTokenService mcpTokens;
+    @Autowired ObjectMapper mapper;
     @MockitoBean FirebaseIdentityService firebase;
 
     @Test
@@ -134,6 +146,62 @@ class FirebaseAuthenticationIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.perfil").value("CLIENTE"));
         Usuario created = users.findByFirebaseUid("uid-google-new").orElseThrow();
         org.junit.jupiter.api.Assertions.assertEquals(PerfilUsuario.CLIENTE, created.getPerfil());
+    }
+
+    @Test
+    void loginGoogleConcedeJwtMcpAoMesmoCliente() throws Exception {
+        oauthAposLoginFirebase("google.com", "uid-google-mcp", "google-mcp@example.com");
+    }
+
+    @Test
+    void loginEmailSenhaFirebaseConcedeJwtMcpAoMesmoCliente() throws Exception {
+        oauthAposLoginFirebase("password", "uid-password-mcp", "password-mcp@example.com");
+    }
+
+    private void oauthAposLoginFirebase(String provider, String uid, String email) throws Exception {
+        when(firebase.enabled()).thenReturn(true);
+        Usuario usuario = new Usuario("Cliente MCP", email, email, null,
+                PerfilUsuario.CLIENTE, EstadoConta.ATIVA, null, null);
+        usuario.setFirebaseUid(uid);
+        usuario = users.saveAndFlush(usuario);
+        token(uid, email, provider);
+        Cookie sessao = mvc.perform(post("/api/autenticacao/sessoes/firebase").with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"idToken\":\"valid-token\"}"))
+                .andExpect(status().isOk()).andReturn().getResponse().getCookie("SESSION");
+        assertNotNull(sessao);
+        String redirect = "http://127.0.0.1:1234/callback";
+        String clientId = (String) mapper.readValue(mvc.perform(post("/oauth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"client_name\":\"Teste OAuth\",\"redirect_uris\":[\"" + redirect + "\"]}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsByteArray(), Map.class)
+                .get("client_id");
+        String verifier = "v".repeat(43);
+        String challenge = Base64.getUrlEncoder().withoutPadding().encodeToString(
+                MessageDigest.getInstance("SHA-256").digest(verifier.getBytes(StandardCharsets.US_ASCII)));
+        mvc.perform(get("/oauth/authorize").cookie(sessao)
+                .param("response_type", "code").param("client_id", clientId).param("redirect_uri", redirect)
+                .param("code_challenge", challenge).param("code_challenge_method", "S256")
+                .param("scope", "mcp:read").param("state", "estado-mcp")
+                .param("resource", mcpTokens.audience())).andExpect(status().isOk());
+        String retorno = mvc.perform(post("/oauth/authorize").cookie(sessao).with(csrf())
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .param("response_type", "code").param("client_id", clientId).param("redirect_uri", redirect)
+                .param("code_challenge", challenge).param("code_challenge_method", "S256")
+                .param("scope", "mcp:read").param("state", "estado-mcp")
+                .param("resource", mcpTokens.audience()).param("decisao", "permitir"))
+                .andExpect(status().isFound()).andReturn().getResponse().getHeader("Location");
+        assertNotNull(retorno);
+        String code = new URI(retorno).getRawQuery().split("code=")[1].split("&")[0];
+        String jwt = (String) mapper.readValue(mvc.perform(post("/oauth/token")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .param("grant_type", "authorization_code").param("code", code)
+                .param("client_id", clientId).param("redirect_uri", redirect)
+                .param("code_verifier", verifier)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray(), Map.class).get("access_token");
+        assertEquals(usuario.getId(), mcpTokens.validar("Bearer " + jwt).principal().id());
+        mvc.perform(get("/api/mcp/internal/me/lista-espera")
+                .header("X-MCP-Service-Key", "test-service-key")
+                .header("Authorization", "Bearer " + jwt)).andExpect(status().isOk());
     }
 
     private void token(String uid, String email, String provider) throws Exception {

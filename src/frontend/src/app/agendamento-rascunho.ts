@@ -50,6 +50,11 @@ export function retornoRevisaoSeguro(retorno: string | null): string | null {
   if (!retorno || !retorno.startsWith('/') || retorno.startsWith('//') || retorno.includes('\\')) return null;
   try {
     const url = new URL(retorno, 'https://estilomarcado.invalid');
+    if (url.origin === 'https://estilomarcado.invalid' && url.pathname === '/checkout'
+        && !url.search && /^#t=[A-Za-z0-9_-]{43}$/.test(url.hash)) return url.pathname + url.hash;
+    if (url.origin === 'https://estilomarcado.invalid' && url.pathname === '/oauth/authorize'
+        && !url.hash && url.searchParams.has('client_id') && url.searchParams.has('state')
+        && url.searchParams.has('code_challenge') && url.searchParams.has('redirect_uri')) return url.pathname + url.search;
     if (url.origin !== 'https://estilomarcado.invalid'
         || !/^\/unidades\/[1-9]\d*\/revisar$/.test(url.pathname) || url.hash) return null;
     const permitido = new Set(['servicoId', 'profissionalId', 'preferenciaId', 'inicio', 'criadoEm']);

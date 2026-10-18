@@ -87,8 +87,14 @@ services:
       SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-true}
       SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: ${MAIL_SMTP_STARTTLS:-true}
+      MCP_ISSUER: ${FRONTEND_URL}
+      MCP_AUDIENCE: ${FRONTEND_URL}/mcp
+      MCP_PRIVATE_KEY_PATH: /run/mcp/private.pem
+      MCP_CHECKOUT_KEY: ${MCP_CHECKOUT_KEY:?MCP_CHECKOUT_KEY obrigatoria}
+      MCP_SERVICE_KEY: ${MCP_SERVICE_KEY:?MCP_SERVICE_KEY obrigatoria}
     volumes:
       - ./deploy/firebase:/run/firebase:ro
+      - ./deploy/mcp:/run/mcp:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -144,6 +150,31 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    networks:
+      - interna
+
+  mcp:
+    build: ./src/mcp
+    image: estilo-marcado-mcp:prod
+    restart: unless-stopped
+    environment:
+      MCP_BACKEND_URL: http://backend:8080
+      MCP_ISSUER: ${FRONTEND_URL}
+      MCP_AUDIENCE: ${FRONTEND_URL}/mcp
+      MCP_SERVICE_KEY: ${MCP_SERVICE_KEY:?MCP_SERVICE_KEY obrigatoria}
+    ports:
+      - "127.0.0.1:8082:8000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
     networks:
       - interna
 

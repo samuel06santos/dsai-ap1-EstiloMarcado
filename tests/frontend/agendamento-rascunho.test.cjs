@@ -35,7 +35,7 @@ test('aceita somente rascunho recente e com IDs e data válidos', () => {
     + '&inicio=2026-10-20T14%3A00%3A00&criadoEm=' + Date.now())), null);
 });
 
-test('retorno após autenticação aceita somente revisão interna válida', () => {
+test('retorno após autenticação aceita revisão, checkout e autorização internos', () => {
   const interno = '/unidades/10/revisar?servicoId=20&profissionalId=30'
     + '&inicio=2026-10-20T14%3A00%3A00&criadoEm=' + Date.now();
   assert.equal(retornoRevisaoSeguro(interno), interno);
@@ -43,6 +43,12 @@ test('retorno após autenticação aceita somente revisão interna válida', () 
   assert.equal(retornoRevisaoSeguro('//evil.example' + interno), null);
   assert.equal(retornoRevisaoSeguro('/administracao/estabelecimento'), null);
   assert.equal(retornoRevisaoSeguro(interno + '&token=abc'), null);
+  const checkout = '/checkout#t=' + 'a'.repeat(43);
+  assert.equal(retornoRevisaoSeguro(checkout), checkout);
+  assert.equal(retornoRevisaoSeguro('/checkout#t=curto'), null);
+  const oauth = '/oauth/authorize?client_id=em-1&state=abc&code_challenge=xyz&redirect_uri=http%3A%2F%2F127.0.0.1%3A1234%2Fcb';
+  assert.equal(retornoRevisaoSeguro(oauth), oauth);
+  assert.equal(retornoRevisaoSeguro('//evil.example/oauth/authorize?' + oauth.split('?')[1]), null);
 });
 
 test('repetição usa a mesma chave e conclusão a limpa', () => {

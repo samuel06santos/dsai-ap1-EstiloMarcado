@@ -1,0 +1,20 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "estilo_marcado": {
+      "type": "remote",
+      "url": "https://estilomarcado.samuelsantos.qzz.io/mcp",
+      "enabled": true
+    }
+  },
+  "permission": {
+    "estilo_marcado_*": "ask",
+    "estilo_marcado_listar_filiais": "allow",
+    "estilo_marcado_listar_servicos": "allow",
+    "estilo_marcado_consultar_horarios": "allow",
+    "estilo_marcado_meus_agendamentos": "allow",
+    "estilo_marcado_detalhar_agendamento": "allow",
+    "estilo_marcado_horarios_para_reagendar": "allow",
+    "estilo_marcado_minha_lista_espera": "allow"
+  }
+}
