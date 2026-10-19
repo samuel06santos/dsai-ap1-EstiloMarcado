@@ -95,6 +95,9 @@ class McpContractTest(unittest.TestCase):
         namespace = {"JSONResponse": Response, "ISSUER": "https://example.test",
                      "AUDIENCE": "https://example.test/mcp", "json": json,
                      "PRIVATE_READS": {"meus_agendamentos"}, "PRIVATE_WRITES": {"cancelar_agendamento"}}
+        async def invalidar(_value):
+            raise ValueError("token expirado")
+        namespace["_validar_token"] = invalidar
         exec(compile(ast.Module(body=[challenge], type_ignores=[]), "server.py", "exec"), namespace)
         middleware = namespace["AuthChallenge"](inner)
         scope = {"type": "http", "method": "POST", "path": "/mcp",
@@ -114,6 +117,11 @@ class McpContractTest(unittest.TestCase):
         _run_immediate(middleware(metadata, lambda: _event(public), lambda event: _append(sent, event)))
         self.assertEqual(200, sent[-1]["status"])
         self.assertEqual("https://example.test/mcp", sent[-1]["body"]["resource"])
+        sent.clear()
+        expirado = {**scope, "headers": [(b"authorization", b"Bearer expirado")]}
+        _run_immediate(middleware(expirado, lambda: _event(public), lambda event: _append(sent, event)))
+        self.assertEqual(401, sent[-1]["status"])
+        self.assertIn('error="invalid_token"', sent[-1]["headers"]["WWW-Authenticate"])
 
     def test_oauth_css_routes_to_backend_before_static_assets(self):
         frontend_nginx = (ROOT / "src/frontend/nginx/default.conf").read_text(encoding="utf-8")

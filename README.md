@@ -748,6 +748,8 @@ HTTPS; `.claude/settings.json`, `opencode.json` e `.codex/config.toml`
 permitem leituras e pedem aprovação antes das escritas em cada cliente.
 O login do site continua por e-mail/senha ou Google e usa a sessão HTTP; o
 cliente MCP recebe um JWT separado após código de autorização e PKCE.
+O JWT dura cinco minutos e é renovado pelo cliente com refresh token rotativo,
+sem novo login enquanto a autorização permanecer válida.
 Pré-reservas anônimas duram dez minutos e são concluídas em `/checkout`.
 Veja [o guia de implantação](deploy/README.md#mcp-remoto) e a
 [SPEC](SPEC/2026-10-17-servidor-fastmcp-e-checkout-de-pre-reserva.md).

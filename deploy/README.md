@@ -366,7 +366,17 @@ normal no Estilo Marcado e consentimento, **o cliente** troca o código em
 requisição `/mcp`. A sessão `SESSION` permanece só no navegador. Verifique no
 cliente uma chamada privada bem-sucedida depois desse retorno: a página de
 consentimento, sozinha, não atualiza o cabeçalho HTTP do cliente. O JWT dura
-cinco minutos; reautorize ao expirar. O recurso não aceita token Firebase.
+cinco minutos. O endpoint devolve também um refresh token opaco que o Codex
+guarda e troca por um novo par quando o acesso expira, sem repetir o login web.
+Cada renovação gira o refresh token; o anterior não pode ser reutilizado. Ele
+vence após trinta dias, e a revogação do aplicativo ou o bloqueio da conta
+impedem novas renovações. Bearer expirado recebe desafio HTTP 401
+`invalid_token`; refresh inválido recebe `invalid_grant`. O recurso não aceita
+token Firebase. Depois de instalar esta versão, clientes autorizados antes da
+renovação precisam executar o login MCP **uma vez** para receber o primeiro
+refresh token. Se o Codex continuar pedindo reconexão após isso, confira a
+versão do cliente e o fluxo de refresh no próprio Codex antes de ampliar a
+duração do JWT.
 
 Sem Bearer, `criar_agendamento` cria pré-reserva de dez minutos após aprovação
 da tool. O link HTTPS contém token opaco no fragmento, que não autentica o

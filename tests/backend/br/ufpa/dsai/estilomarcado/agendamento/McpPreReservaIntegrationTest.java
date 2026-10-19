@@ -18,6 +18,7 @@ import java.util.UUID;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
+import java.util.HexFormat;
 import java.net.URI;
 import java.util.regex.Pattern;
 import java.util.concurrent.CountDownLatch;
@@ -333,8 +334,13 @@ class McpPreReservaIntegrationTest {
                 .param("client_id", "teste").param("redirect_uri", redirect)
                 .param("code_verifier", verifier))
                 .andExpect(status().isOk()).andReturn();
-        String jwt = (String) mapper.readValue(troca.getResponse().getContentAsByteArray(), java.util.Map.class)
-                .get("access_token");
+        var primeiroPar = mapper.readValue(troca.getResponse().getContentAsByteArray(), java.util.Map.class);
+        String jwt = (String) primeiroPar.get("access_token");
+        String refresh = (String) primeiroPar.get("refresh_token");
+        assertNotNull(refresh);
+        assertEquals(43, refresh.length());
+        assertEquals(0, jdbc.queryForObject("select count(*) from mcp_refresh_token where token_hash=?",
+                Integer.class, refresh));
         assertEquals(cliente.getId(), tokens.validar("Bearer " + jwt).principal().id());
         mvc.perform(get("/api/mcp/internal/me/lista-espera")
                 .header("X-MCP-Service-Key", "test-service-key")
@@ -344,6 +350,53 @@ class McpPreReservaIntegrationTest {
                 .param("grant_type", "authorization_code").param("code", code)
                 .param("client_id", "teste").param("redirect_uri", redirect)
                 .param("code_verifier", verifier)).andExpect(status().isBadRequest());
+        mvc.perform(post("/oauth/token").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .param("grant_type", "refresh_token").param("client_id", "outro")
+                .param("refresh_token", refresh))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").value("invalid_grant"));
+        var renovacao = mvc.perform(post("/oauth/token").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .param("grant_type", "refresh_token").param("client_id", "teste")
+                .param("refresh_token", refresh).param("resource", tokens.audience()))
+                .andExpect(status().isOk()).andReturn();
+        var segundoPar = mapper.readValue(renovacao.getResponse().getContentAsByteArray(), java.util.Map.class);
+        String segundoRefresh = (String) segundoPar.get("refresh_token");
+        assertNotEquals(refresh, segundoRefresh);
+        assertEquals(cliente.getId(), tokens.validar("Bearer " + segundoPar.get("access_token")).principal().id());
+        mvc.perform(post("/oauth/token").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .param("grant_type", "refresh_token").param("client_id", "teste")
+                .param("refresh_token", refresh))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").value("invalid_grant"));
+        mvc.perform(post("/oauth/revoke").with(user(UsuarioPrincipal.from(cliente))).with(csrf())
+                .param("client_id", "teste")).andExpect(status().isNoContent());
+        mvc.perform(post("/oauth/token").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .param("grant_type", "refresh_token").param("client_id", "teste")
+                .param("refresh_token", segundoRefresh))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").value("invalid_grant"));
+    }
+
+    @Test
+    void refreshTokenExpiradoNaoRenova() throws Exception {
+        String bruto = "r".repeat(43);
+        String hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                .digest(bruto.getBytes(StandardCharsets.UTF_8)));
+        jdbc.update("insert into mcp_cliente_oauth(id,nome,redirect_uris) values ('teste','Teste','http://127.0.0.1:1234/callback')");
+        jdbc.update("insert into mcp_autorizacao(usuario_id,cliente_id,versao) values (?, 'teste',1)", cliente.getId());
+        jdbc.update("""
+                insert into mcp_refresh_token(token_hash,usuario_id,cliente_id,escopos,autorizacao_versao,
+                    criado_em,expira_em) values (?,?,'teste','mcp:read',1,
+                    clock_timestamp()-interval '31 days',clock_timestamp()-interval '1 day')
+                """, hash, cliente.getId());
+        mvc.perform(post("/oauth/token").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .param("grant_type", "refresh_token").param("client_id", "teste")
+                .param("refresh_token", bruto))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").value("invalid_grant"));
+        jdbc.update("update mcp_refresh_token set expira_em=clock_timestamp()+interval '1 day' where token_hash=?", hash);
+        cliente.setEstado(EstadoConta.BLOQUEADA);
+        usuarios.saveAndFlush(cliente);
+        mvc.perform(post("/oauth/token").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .param("grant_type", "refresh_token").param("client_id", "teste")
+                .param("refresh_token", bruto))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").value("invalid_grant"));
     }
 
     @Test

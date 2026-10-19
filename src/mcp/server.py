@@ -83,6 +83,11 @@ async def _bearer() -> str | None:
     value = request.headers.get("authorization")
     if value is None:
         return None
+    return await _validar_token(value)
+
+
+async def _validar_token(value: str) -> str:
+    """Valida o acesso apresentado no HTTP; refresh pertence ao cliente OAuth."""
     if not value.startswith("Bearer ") or len(value) < 20:
         raise ValueError("Bearer MCP inválido; reautorize o cliente MCP.")
     token = value[7:]
@@ -238,6 +243,15 @@ class AuthChallenge:
             return
         if scope["type"] == "http" and scope.get("method") == "POST" and scope.get("path", "").rstrip("/") == "/mcp":
             headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
+            if headers.get("authorization"):
+                try:
+                    await _validar_token(headers["authorization"])
+                except ValueError:
+                    await JSONResponse({"codigo": "TOKEN_MCP_INVALIDO"}, status_code=401, headers={
+                        "WWW-Authenticate": (f'Bearer resource_metadata="{ISSUER}/.well-known/oauth-protected-resource/mcp", '
+                                             'error="invalid_token", error_description="MCP access token expired or invalid"'),
+                        "Cache-Control": "no-store"})(scope, receive, send)
+                    return
             if not headers.get("authorization"):
                 chunks = []
                 total = 0

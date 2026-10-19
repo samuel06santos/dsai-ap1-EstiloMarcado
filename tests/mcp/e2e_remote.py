@@ -79,9 +79,11 @@ def conta_e_token():
             "grant_type": "authorization_code", "code": codigo, "client_id": client_id,
             "redirect_uri": REDIRECT, "code_verifier": verifier}, timeout=15), 200).json()
         jwt = resposta["access_token"]
+        refresh = resposta["refresh_token"]
         assert resposta["token_type"] == "Bearer" and resposta["expires_in"] <= 300
+        assert len(refresh) == 43
         print("Conta local, SESSION, consentimento PKCE e troca do código: OK")
-        return jwt, browser, client_id
+        return jwt, refresh, browser, client_id
     except Exception:
         browser.close()
         raise
@@ -148,13 +150,34 @@ async def token_revogado(jwt):
 
 
 def main():
-    jwt, browser, client_id = conta_e_token()
+    jwt, refresh, browser, client_id = conta_e_token()
     try:
         asyncio.run(cliente_mcp(jwt))
+        rejeicao = exigir(httpx.post(MCP, headers={"Authorization": "Bearer expirado"}, json={
+            "jsonrpc": "2.0", "id": 1, "method": "tools/list"}, timeout=15), 401)
+        assert 'error="invalid_token"' in rejeicao.headers["WWW-Authenticate"]
+        renovado = exigir(httpx.post(BACKEND + "/oauth/token", data={
+            "grant_type": "refresh_token", "refresh_token": refresh,
+            "client_id": client_id,
+            "resource": os.environ.get("MCP_TEST_AUDIENCE", "http://localhost:18000/mcp")}, timeout=15), 200).json()
+        assert renovado["refresh_token"] != refresh
+        assert exigir(httpx.post(BACKEND + "/oauth/token", data={
+            "grant_type": "refresh_token", "refresh_token": refresh,
+            "client_id": client_id}, timeout=15), 400).json()["error"] == "invalid_grant"
+        async def ler_com_token_renovado():
+            async with Client(MCP, auth=renovado["access_token"]) as cliente:
+                resultado = await cliente.call_tool("minha_lista_espera", {})
+                assert not resultado.is_error, resultado
+        asyncio.run(ler_com_token_renovado())
+        print("Refresh rotativo: novo Bearer aceito pelo cliente MCP, anterior recusado: OK")
         exigir(browser.get("/api/autenticacao/csrf"), 200)
         exigir(browser.post("/oauth/revoke", data={"client_id": client_id},
                             headers={"X-XSRF-TOKEN": browser.cookies["XSRF-TOKEN"]}), 204)
         asyncio.run(token_revogado(jwt))
+        asyncio.run(token_revogado(renovado["access_token"]))
+        assert exigir(httpx.post(BACKEND + "/oauth/token", data={
+            "grant_type": "refresh_token", "refresh_token": renovado["refresh_token"],
+            "client_id": client_id}, timeout=15), 400).json()["error"] == "invalid_grant"
     finally:
         browser.close()
 

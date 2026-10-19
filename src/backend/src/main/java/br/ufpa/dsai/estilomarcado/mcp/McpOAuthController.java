@@ -17,6 +17,7 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -67,7 +68,7 @@ public class McpOAuthController {
                 Map.entry("registration_endpoint", tokens.issuer() + "/oauth/register"),
                 Map.entry("jwks_uri", tokens.issuer() + "/oauth/jwks"),
                 Map.entry("response_types_supported", List.of("code")),
-                Map.entry("grant_types_supported", List.of("authorization_code")),
+                Map.entry("grant_types_supported", List.of("authorization_code", "refresh_token")),
                 Map.entry("code_challenge_methods_supported", List.of("S256")),
                 Map.entry("scopes_supported", List.of("mcp:read", "mcp:write")),
                 Map.entry("token_endpoint_auth_methods_supported", List.of("none")));
@@ -95,7 +96,7 @@ public class McpOAuthController {
                 id, nome, String.join("\n", redirectUris));
         return ResponseEntity.status(201).cacheControl(CacheControl.noStore()).body(Map.of(
                 "client_id", id, "client_name", nome, "redirect_uris", redirectUris,
-                "token_endpoint_auth_method", "none", "grant_types", List.of("authorization_code"),
+                "token_endpoint_auth_method", "none", "grant_types", List.of("authorization_code", "refresh_token"),
                 "response_types", List.of("code")));
     }
 
@@ -189,36 +190,104 @@ public class McpOAuthController {
     @PostMapping(value = "/oauth/token", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
     @Transactional
     public ResponseEntity<Map<String, Object>> token(@RequestParam Map<String, String> parametros) {
+        if (parametros.containsKey("resource") && !tokens.audience().equals(parametros.get("resource")))
+            throw new InvalidGrant();
+        if ("refresh_token".equals(parametros.get("grant_type")))
+            return renovar(parametros);
         if (!"authorization_code".equals(parametros.get("grant_type")))
             throw new IllegalArgumentException("grant_type invalido");
         String codigo = parametros.get("code"), verifier = parametros.get("code_verifier");
         if (codigo == null || verifier == null || !verifier.matches("[A-Za-z0-9._~-]{43,128}"))
-            throw new IllegalArgumentException("codigo ou PKCE invalido");
+            throw new InvalidGrant();
         List<Map<String, Object>> itens = jdbc.queryForList("""
                 select * from mcp_codigo_oauth where codigo_hash=? for update
                 """, sha256(codigo));
-        if (itens.isEmpty()) throw new IllegalArgumentException("codigo invalido");
+        if (itens.isEmpty()) throw new InvalidGrant();
         Map<String, Object> item = itens.getFirst();
         if (item.get("consumido_em") != null
                 || !((java.sql.Timestamp) item.get("expira_em")).toInstant().isAfter(clock.instant())
                 || !item.get("cliente_id").equals(parametros.get("client_id"))
                 || !item.get("redirect_uri").equals(parametros.get("redirect_uri"))
                 || !item.get("code_challenge").equals(pkce(verifier)))
-            throw new IllegalArgumentException("codigo invalido");
+            throw new InvalidGrant();
         jdbc.update("update mcp_codigo_oauth set consumido_em=clock_timestamp() where codigo_hash=?", sha256(codigo));
         String escopos = (String) item.get("escopos");
-        String jwt = tokens.emitir(((Number) item.get("usuario_id")).longValue(),
+        return emitirPar(((Number) item.get("usuario_id")).longValue(),
                 (String) item.get("cliente_id"), escopos);
+    }
+
+    private ResponseEntity<Map<String, Object>> renovar(Map<String, String> parametros) {
+        String bruto = parametros.get("refresh_token");
+        String clienteId = parametros.get("client_id");
+        if (bruto == null || !bruto.matches("[A-Za-z0-9_-]{43}")
+                || clienteId == null || clienteId.isBlank()) throw new InvalidGrant();
+        List<Map<String, Object>> itens = jdbc.queryForList("""
+                select r.usuario_id,r.cliente_id,r.escopos,r.autorizacao_versao,r.expira_em,r.consumido_em,
+                       a.versao as versao_atual,a.revogado_em
+                from mcp_refresh_token r
+                left join mcp_autorizacao a on a.usuario_id=r.usuario_id and a.cliente_id=r.cliente_id
+                where r.token_hash=? for update of r
+                """, sha256(bruto));
+        if (itens.isEmpty()) throw new InvalidGrant();
+        Map<String, Object> item = itens.getFirst();
+        if (!clienteId.equals(item.get("cliente_id")) || item.get("consumido_em") != null
+                || !((java.sql.Timestamp) item.get("expira_em")).toInstant().isAfter(clock.instant())
+                || item.get("revogado_em") != null || item.get("versao_atual") == null
+                || !item.get("autorizacao_versao").equals(item.get("versao_atual")))
+            throw new InvalidGrant();
+        Long usuarioId = ((Number) item.get("usuario_id")).longValue();
+        String escopos = (String) item.get("escopos");
+        try {
+            String jwt = tokens.emitir(usuarioId, clienteId, escopos);
+            jdbc.update("update mcp_refresh_token set consumido_em=clock_timestamp() where token_hash=?",
+                    sha256(bruto));
+            return respostaTokens(jwt, criarRefreshToken(usuarioId, clienteId, escopos,
+                    ((Number) item.get("autorizacao_versao")).intValue()), escopos);
+        } catch (org.springframework.security.authentication.BadCredentialsException ex) {
+            throw new InvalidGrant();
+        }
+    }
+
+    private ResponseEntity<Map<String, Object>> emitirPar(Long usuarioId, String clienteId, String escopos) {
+        String jwt = tokens.emitir(usuarioId, clienteId, escopos);
+        Integer versao = jdbc.queryForObject("""
+                select versao from mcp_autorizacao where usuario_id=? and cliente_id=? and revogado_em is null
+                """, Integer.class, usuarioId, clienteId);
+        return respostaTokens(jwt, criarRefreshToken(usuarioId, clienteId, escopos, versao), escopos);
+    }
+
+    private String criarRefreshToken(Long usuarioId, String clienteId, String escopos, int versao) {
+        byte[] bytes = new byte[32]; random.nextBytes(bytes);
+        String bruto = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        jdbc.update("""
+                insert into mcp_refresh_token(token_hash,usuario_id,cliente_id,escopos,autorizacao_versao,expira_em)
+                values (?,?,?,?,?,clock_timestamp()+interval '30 days')
+                """, sha256(bruto), usuarioId, clienteId, escopos, versao);
+        return bruto;
+    }
+
+    private ResponseEntity<Map<String, Object>> respostaTokens(String jwt, String refresh, String escopos) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(Map.of(
-                "access_token", jwt, "token_type", "Bearer", "expires_in", 300, "scope", escopos));
+                "access_token", jwt, "refresh_token", refresh, "token_type", "Bearer",
+                "expires_in", 300, "scope", escopos));
+    }
+
+    private static final class InvalidGrant extends RuntimeException {}
+
+    @ExceptionHandler(InvalidGrant.class)
+    public ResponseEntity<Map<String, Object>> invalidGrant() {
+        return ResponseEntity.badRequest().cacheControl(CacheControl.noStore())
+                .body(Map.of("error", "invalid_grant"));
     }
 
     @PostMapping("/oauth/revoke")
+    @Transactional
     public ResponseEntity<Void> revogar(@RequestParam String client_id) {
         UsuarioPrincipal usuario = principalOuNulo();
         if (usuario == null) throw new AccessDeniedException("sessao necessaria");
         jdbc.update("update mcp_autorizacao set versao=versao+1,revogado_em=clock_timestamp() where usuario_id=? and cliente_id=?",
                 usuario.id(), client_id);
+        jdbc.update("delete from mcp_refresh_token where usuario_id=? and cliente_id=?", usuario.id(), client_id);
         return ResponseEntity.noContent().build();
     }
 

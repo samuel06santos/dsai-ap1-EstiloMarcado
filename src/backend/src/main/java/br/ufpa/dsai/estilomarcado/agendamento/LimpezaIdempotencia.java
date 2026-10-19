@@ -23,5 +23,7 @@ public class LimpezaIdempotencia {
         jdbc.update("delete from mcp_confirmacao_consumida where consumido_em < clock_timestamp()-interval '1 day'");
         jdbc.update("delete from mcp_codigo_oauth where expira_em < clock_timestamp()-interval '1 day'");
         jdbc.update("delete from mcp_token_revogado where expira_em < clock_timestamp()");
+        jdbc.update("delete from mcp_refresh_token where expira_em < clock_timestamp() "
+                + "or consumido_em < clock_timestamp()-interval '1 day'");
     }
 }
