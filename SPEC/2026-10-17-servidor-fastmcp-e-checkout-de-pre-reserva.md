@@ -88,14 +88,28 @@ arquivos estáticos, inclusive para servir `/oauth/consent.css` pelo backend.
    vinculado a usuário, cliente, URI, desafio PKCE e recurso MCP. Recusa,
    expiração, reutilização ou divergência não concedem token.
 3. O **cliente MCP**, não a página, recebe o código no retorno e o troca no
-   endpoint de token com o `code_verifier`. O endpoint retorna o JWT ao cliente
-   MCP, sem precisar de `SESSION` nessa troca. O cliente o guarda no mecanismo
-   seguro de credenciais e passa a enviar
+   endpoint de token com o `code_verifier`. O endpoint retorna o JWT e um
+   refresh token opaco ao cliente MCP, sem precisar de `SESSION` nessa troca.
+   O cliente os guarda no mecanismo seguro de credenciais e passa a enviar
    `Authorization: Bearer <JWT>` em **cada** requisição HTTP MCP, inclusive
-   depois de reconexão; na expiração, autoriza novamente. A documentação deve
+   depois de reconexão. Antes da expiração, o cliente usa o grant
+   `refresh_token` no endpoint OAuth para obter novo JWT sem abrir o login.
+   A documentação deve
    mostrar configuração e sequência observável para ao menos um cliente MCP
    remoto real. Abrir a página de login, receber o código ou obter uma sessão
    no navegador **não** prova que o cabeçalho do cliente foi atualizado.
+
+O JWT continua válido por no máximo cinco minutos. O refresh token dura até
+trinta dias, é vinculado ao cliente OAuth, usuário, escopos e versão do
+consentimento, e gira a cada uso. O banco guarda somente seu hash; reuso,
+expiração, revogação, mudança de perfil ou desativação da conta impedem a
+renovação. A resposta de erro usa `invalid_grant`. O refresh token nunca é
+enviado ao servidor MCP como Bearer nem como argumento de tool. Um Bearer
+expirado apresentado em qualquer chamada MCP recebe HTTP 401 com desafio
+`WWW-Authenticate` e `invalid_token`, para que o cliente tente renovar. Sem
+Bearer, as tools públicas continuam anônimas. Clientes que já tinham apenas
+JWT antes desta mudança precisam autorizar uma vez após o novo deploy para
+receber o refresh token.
 
 O JWT é assinado com chave assimétrica gerida fora do repositório; a chave
 pública é publicada via JWKS com rotação documentada. Exige `iss` exato do
@@ -388,7 +402,9 @@ somente o nginx publica o MCP por HTTPS.
 - Um teste ponta a ponta usa cliente MCP remoto real: antes da autorização
   observa a orientação sem dados; após o callback e troca do código captura
   a requisição HTTP seguinte e comprova `Authorization: Bearer` presente,
-  obtém dados próprios; depois de expirar, falha até reautorizar. Apenas ver
+  obtém dados próprios; depois da renovação usa o novo Bearer sem novo login.
+  Bearer inválido/expirado recebe HTTP 401 com `invalid_token`; refresh
+  reutilizado, expirado ou revogado recebe `invalid_grant`. Apenas ver
   a página no navegador não satisfaz este teste.
 - O agente carrega o servidor pelo `.mcp.json` versionado. Um teste confere
   que as dez docstrings publicadas descrevem quando usar a tool, que as sete
