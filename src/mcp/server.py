@@ -1,19 +1,20 @@
 """Recurso MCP remoto do Estilo Marcado; a identidade vem somente da requisição HTTP."""
 
+import asyncio
+import base64
 import hashlib
 import hmac
 import json
 import os
+import time
 import uuid
 from datetime import date
-from typing import Annotated
 
 import httpx
 import jwt
 from fastmcp import Context, FastMCP
 from fastmcp.server.dependencies import get_http_request
-from mcp.server.mcpserver import Elicit, Resolve
-from pydantic import BaseModel
+from mcp.types import ElicitRequest, ElicitRequestFormParams, InputRequiredResult
 from starlette.responses import JSONResponse
 
 
@@ -27,52 +28,64 @@ PRIVATE_READS = {"meus_agendamentos", "detalhar_agendamento", "horarios_para_rea
 PRIVATE_WRITES = {"cancelar_agendamento", "reagendar_agendamento"}
 
 
-class Confirmacao(BaseModel):
-    """Resposta estruturada da aprovação humana de uma operação de escrita."""
-
-    aprovar: bool
-
-
-def _confirmacao_nonce(ctx: Context, intencao: str, bearer: str | None) -> str:
-    """Gera o nonce da escrita a partir do estado da confirmação do MCP.
-
-    Em conexões modernas, o FastMCP devolve a pergunta e recebe a resposta em
-    outra requisição; ``request_state`` permanece estável entre essas rodadas.
-    Em clientes legados, a resposta chega na mesma sessão e um valor aleatório
-    é suficiente. O HMAC impede que o cliente fabrique um nonce aceito pelo
-    backend fora de uma confirmação emitida pelo servidor.
-    """
+def _assinar_intencao(intencao: str, bearer: str | None) -> str:
     if not SERVICE_KEY:
         raise ValueError("Servidor MCP sem chave de serviço configurada.")
-    estado = ctx.request_state
-    if estado is None:
-        sessao = get_http_request().headers.get("mcp-session-id")
-        estado = f"legacy|{sessao or uuid.uuid4()}"
-    elif not isinstance(estado, str):
-        estado = json.dumps(estado, sort_keys=True, separators=(",", ":"))
-    material = "\0".join((intencao, bearer or "", estado))
-    digest = hmac.new(SERVICE_KEY.encode(), material.encode(), hashlib.sha256).hexdigest()
-    return str(uuid.UUID(digest[:32]))
+    dados = {"intencao": intencao, "bearer_hash": hashlib.sha256((bearer or "").encode()).hexdigest(),
+             "exp": int(time.time()) + 300, "nonce": str(uuid.uuid4())}
+    corpo = base64.urlsafe_b64encode(json.dumps(dados, separators=(",", ":")).encode()).decode().rstrip("=")
+    assinatura = hmac.new(SERVICE_KEY.encode(), corpo.encode(), hashlib.sha256).hexdigest()
+    return corpo + "." + assinatura
 
 
-async def _confirmar_criacao(filial_id: int, servico_id: int, inicio: str, ctx: Context) -> Elicit[Confirmacao]:
-    return Elicit(
-        f"Criar agendamento na filial {filial_id}, serviço {servico_id}, início {inicio}; "
-        "o servidor escolhe o primeiro profissional disponível por ID. Sem autorização MCP, "
-        "será criada apenas pré-reserva de dez minutos para checkout. Confirma?",
-        Confirmacao,
-    )
+def _validar_intencao(estado: str | None, intencao: str, bearer: str | None) -> str:
+    try:
+        corpo, assinatura = (estado or "").split(".", 1)
+        esperado = hmac.new(SERVICE_KEY.encode(), corpo.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(assinatura, esperado):
+            raise ValueError()
+        dados = json.loads(base64.urlsafe_b64decode(corpo + "=" * (-len(corpo) % 4)))
+        if (dados["intencao"] != intencao or dados["exp"] < time.time()
+                or dados["bearer_hash"] != hashlib.sha256((bearer or "").encode()).hexdigest()):
+            raise ValueError()
+        return dados["nonce"]
+    except (ValueError, KeyError, TypeError) as exc:
+        raise ValueError("Confirmação MCP inválida ou expirada; revise a operação novamente.") from exc
 
 
-async def _confirmar_cancelamento(agendamento_id: int, motivo: str, ctx: Context) -> Elicit[Confirmacao]:
-    return Elicit(
-        f"Cancelar o agendamento {agendamento_id}? Motivo: {motivo or 'não informado'}.",
-        Confirmacao,
-    )
+def _protocolo_moderno(ctx: Context) -> bool:
+    try:
+        versao = tuple(int(item) for item in str(ctx.request_context.protocol_version).split("-"))
+    except (TypeError, ValueError):
+        return False
+    return versao >= (2026, 7, 28)
 
 
-async def _confirmar_reagendamento(agendamento_id: int, inicio: str, ctx: Context) -> Elicit[Confirmacao]:
-    return Elicit(f"Reagendar o agendamento {agendamento_id} para {inicio}?", Confirmacao)
+async def _confirmar(ctx: Context, descricao: str, intencao: str, bearer: str | None):
+    """Exige resposta interativa do cliente, compatível com as duas eras MCP."""
+    if _protocolo_moderno(ctx):
+        respostas = ctx.input_responses
+        if respostas is None:
+            params = ElicitRequestFormParams(message=descricao, requested_schema={
+                "type": "object", "properties": {"aprovar": {"type": "boolean"}},
+                "required": ["aprovar"]})
+            return InputRequiredResult(
+                input_requests={"confirmacao": ElicitRequest(params=params)},
+                request_state=_assinar_intencao(intencao, bearer))
+        nonce = _validar_intencao(ctx.request_state, intencao, bearer)
+        resposta = respostas.get("confirmacao")
+        if resposta is None or resposta.action != "accept" or resposta.content.get("aprovar") is not True:
+            raise ValueError("Operação recusada; agenda preservada.")
+        return nonce
+    try:
+        resposta = await asyncio.wait_for(ctx.elicit(descricao, response_type=bool), timeout=30)
+    except asyncio.TimeoutError as exc:
+        raise ValueError("O cliente MCP não respondeu à confirmação em 30 segundos; agenda preservada.") from exc
+    if resposta.action != "accept" or resposta.data is not True:
+        raise ValueError("Operação recusada; agenda preservada.")
+    sessao = get_http_request().headers.get("mcp-session-id")
+    return (str(uuid.uuid5(uuid.NAMESPACE_URL, f"{sessao}|{intencao}|{int(time.time() // 600)}"))
+            if sessao else str(uuid.uuid4()))
 
 
 async def _bearer() -> str | None:
@@ -120,9 +133,31 @@ async def _api(method: str, path: str, *, params: dict | None = None, body: dict
         raise ValueError("Autenticação MCP inválida ou expirada; reautorize o cliente MCP.")
     if response.status_code == 403:
         raise ValueError("A conta ou o escopo MCP não permite esta operação.")
+    if response.status_code == 400:
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = {}
+        mensagem = payload.get("mensagem") if isinstance(payload, dict) else None
+        if isinstance(mensagem, str) and mensagem.strip():
+            raise ValueError(f"Requisição inválida: {mensagem}")
+        raise ValueError("Requisição inválida; revise os parâmetros informados.")
     if response.status_code >= 400:
         raise ValueError(f"Operação indisponível ({response.status_code}).")
     return response.json()
+
+
+def _periodo_agendamentos(de: str, ate: str, pagina: int, tamanho: int) -> tuple[date, date]:
+    try:
+        inicio = date.fromisoformat(de)
+        fim = date.fromisoformat(ate)
+    except ValueError as exc:
+        raise ValueError("Use datas no formato AAAA-MM-DD, sem horário ou fuso.") from exc
+    if inicio > fim or (fim - inicio).days > 30:
+        raise ValueError("O período deve ser válido e ter no máximo 31 dias.")
+    if pagina < 0 or tamanho < 1 or tamanho > 100:
+        raise ValueError("A página deve começar em 0 e o tamanho deve ficar entre 1 e 100.")
+    return inicio, fim
 
 
 @mcp.tool()
@@ -146,8 +181,12 @@ async def consultar_horarios(filial_id: int, servico_id: int, data: str):
 
 @mcp.tool()
 async def meus_agendamentos(de: str, ate: str, status: str = "", pagina: int = 0, tamanho: int = 50):
-    """Use para listar reservas próprias futuras ou passadas por período, estado e página. É somente leitura. Sem Bearer, devolve AUTENTICACAO_MCP_NECESSARIA: autorize o cliente MCP e repita, sem passar credenciais como argumento."""
-    date.fromisoformat(de); date.fromisoformat(ate)
+    """Use para listar reservas próprias por período de no máximo 31 dias, estado e página.
+    Informe somente datas locais no formato AAAA-MM-DD; pagina começa em 0 e
+    tamanho vai de 1 a 100. É somente leitura. Sem Bearer, devolve
+    AUTENTICACAO_MCP_NECESSARIA: autorize o cliente MCP e repita, sem passar
+    credenciais como argumento."""
+    _periodo_agendamentos(de, ate, pagina, tamanho)
     params = {"de": de, "ate": ate, "pagina": pagina, "tamanho": tamanho}
     if status:
         params["status"] = status
@@ -174,51 +213,49 @@ async def minha_lista_espera(pagina: int = 0, tamanho: int = 50):
 
 
 @mcp.tool()
-async def criar_agendamento(filial_id: int, servico_id: int, inicio: str,
-                            confirmacao: Annotated[Confirmacao, Resolve(_confirmar_criacao)],
-                            ctx: Context):
+async def criar_agendamento(filial_id: int, servico_id: int, inicio: str, ctx: Context):
     """Use somente após o usuário escolher filial, serviço e horário local e confirmar a ação no diálogo confiável do cliente MCP. Com Bearer cria reserva própria; sem Bearer cria pré-reserva por dez minutos e devolve link HTTPS para checkout no site. O servidor escolhe o primeiro profissional elegível por ID; a escolha pode mudar até a transação. Não use para simples consulta."""
-    if not confirmacao.aprovar:
-        raise ValueError("Operação recusada; agenda preservada.")
     bearer = await _bearer()
-    key = _confirmacao_nonce(ctx, f"criar|{filial_id}|{servico_id}|{inicio}", bearer)
+    confirmacao = await _confirmar(ctx,
+            f"Criar agendamento na filial {filial_id}, serviço {servico_id}, início {inicio}; "
+            "o servidor escolhe o primeiro profissional disponível por ID. Sem autorização MCP, "
+            "será criada apenas pré-reserva de dez minutos para checkout. Confirma?",
+            f"criar|{filial_id}|{servico_id}|{inicio}", bearer)
+    if isinstance(confirmacao, InputRequiredResult):
+        return confirmacao
+    key = confirmacao
     return await _api("POST", "/agendamentos", body={"filialId": filial_id, "servicoId": servico_id,
                                                      "inicio": inicio, "chaveIdempotencia": key})
 
 
 @mcp.tool()
-async def cancelar_agendamento(
-        agendamento_id: int,
-        confirmacao: Annotated[Confirmacao, Resolve(_confirmar_cancelamento)],
-        ctx: Context,
-        motivo: str = ""):
+async def cancelar_agendamento(agendamento_id: int, ctx: Context, motivo: str = ""):
     """Use somente quando o cliente pedir cancelar uma reserva própria. Revise ID e efeito e obtenha confirmação humana explícita pelo cliente MCP antes da escrita. Não use para consulta."""
-    if not confirmacao.aprovar:
-        raise ValueError("Operação recusada; agenda preservada.")
     bearer = await _bearer()
     if bearer is None:
         return {"codigo": "AUTENTICACAO_MCP_NECESSARIA",
                 "mensagem": "Autorize o cliente MCP no Estilo Marcado e repita a chamada."}
+    confirmacao = await _confirmar(ctx, f"Cancelar o agendamento {agendamento_id}? Motivo: {motivo or 'não informado'}.",
+                                  f"cancelar|{agendamento_id}|{motivo}", bearer)
+    if isinstance(confirmacao, InputRequiredResult):
+        return confirmacao
     return await _api("POST", f"/agendamentos/{agendamento_id}/cancelamentos",
-                      body={"motivo": motivo,
-                            "confirmacaoNonce": _confirmacao_nonce(
-                                ctx, f"cancelar|{agendamento_id}|{motivo}", bearer)})
+                      body={"motivo": motivo, "confirmacaoNonce": confirmacao})
 
 
 @mcp.tool()
-async def reagendar_agendamento(agendamento_id: int, inicio: str,
-                                confirmacao: Annotated[Confirmacao, Resolve(_confirmar_reagendamento)],
-                                ctx: Context):
+async def reagendar_agendamento(agendamento_id: int, inicio: str, ctx: Context):
     """Use somente após o cliente escolher novo horário para reserva própria, revisar o destino e confirmar explicitamente no cliente MCP. Consulte alternativas antes se necessário. Esta tool altera a agenda."""
-    if not confirmacao.aprovar:
-        raise ValueError("Operação recusada; agenda preservada.")
     bearer = await _bearer()
     if bearer is None:
         return {"codigo": "AUTENTICACAO_MCP_NECESSARIA",
                 "mensagem": "Autorize o cliente MCP no Estilo Marcado e repita a chamada."}
+    confirmacao = await _confirmar(ctx, f"Reagendar o agendamento {agendamento_id} para {inicio}?",
+                                  f"reagendar|{agendamento_id}|{inicio}", bearer)
+    if isinstance(confirmacao, InputRequiredResult):
+        return confirmacao
     return await _api("POST", f"/agendamentos/{agendamento_id}/reagendamentos",
-                      body={"inicio": inicio, "confirmacaoNonce": _confirmacao_nonce(
-                          ctx, f"reagendar|{agendamento_id}|{inicio}", bearer)})
+                      body={"inicio": inicio, "confirmacaoNonce": confirmacao})
 
 
 class AuthChallenge:

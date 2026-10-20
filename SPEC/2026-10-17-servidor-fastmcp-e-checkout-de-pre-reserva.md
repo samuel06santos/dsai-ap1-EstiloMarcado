@@ -220,24 +220,40 @@ modelo e um simples argumento booleano de confirmação não substituem a
 decisão do usuário. A confirmação no checkout web é adicional para o fluxo
 anônimo.
 
-A implementação deve usar o mecanismo era-portável do FastMCP para essa
-confirmação: um resolver `Resolve` que retorna `Elicit` com um modelo
-estruturado de aprovação. O campo de aprovação é injetado pelo servidor e não
-é publicado como argumento de negócio da tool. Em clientes que negociam o
-protocolo moderno, o FastMCP devolve a pergunta em uma resposta intermediária
-e retoma a mesma intenção com `request_state` e a resposta do usuário; em
-clientes legados, usa a elicitação no canal de retorno da sessão. O servidor
-não deve montar manualmente `InputRequiredResult` nem depender de uma chamada
-direta a `ctx.elicit()` dentro do corpo das tools de escrita para cobrir os
-dois protocolos.
+A implementação deve usar o mecanismo nativo do FastMCP adequado à era do
+protocolo, sem publicar `confirmacao` como argumento de negócio das tools. Para
+clientes modernos, a tool devolve `InputRequiredResult` com uma
+`ElicitRequest` estruturada e um `request_state` assinado pelo servidor; a
+continuação recebe a resposta em `ctx.input_responses`, valida a intenção e só
+então executa a escrita. Para clientes legados, a tool usa `ctx.elicit()` com
+limite explícito de 30 segundos; timeout, recusa ou ausência de suporte falham
+sem alterar a agenda. O uso de `Resolve`/`Annotated` para esconder esse campo
+é proibido nesta integração, pois o parser de `@mcp.tool` do FastMCP o publica
+no schema remoto como argumento obrigatório. O campo de aprovação permanece
+interno ao protocolo interativo.
+
+As tools de escrita devem tratar a resposta intermediária como resultado da
+própria chamada e devolvê-la ao cliente sem chamar o backend. A continuação
+deve manter a mesma intenção, Bearer e nonce assinado; o nonce expira em cinco
+minutos e o backend aplica uso único quando a operação for cancelamento ou
+reagendamento.
 
 O transporte Streamable HTTP do serviço deve permanecer stateful, com resposta
 não-JSON (`stateless_http=false` e `json_response=false`), para conservar o
 canal necessário aos clientes legados. A configuração do servidor não pode
 exigir que cada usuário remoto edite um JSON do projeto. O nonce enviado ao
-backend é derivado por HMAC da intenção, do Bearer e do estado de continuação
-do MCP; cancelamento e reagendamento continuam usando nonce UUID de uso único
-consumido pelo backend.
+backend deve estar vinculado à intenção e ao Bearer. No fluxo moderno, o
+`request_state` contém a intenção, o hash do Bearer, a expiração e um nonce
+UUID, todos protegidos por HMAC; cancelamento e reagendamento extraem esse
+nonce e o backend o consome uma única vez. No fluxo legado, o nonce é gerado
+para a sessão MCP e continua sujeito às validações do backend.
+
+`meus_agendamentos` deve aceitar somente datas locais no formato `AAAA-MM-DD`,
+com intervalo inclusivo máximo de 31 dias (`ate - de <= 30 dias`), página a
+partir de zero e tamanho entre 1 e 100. O adaptador deve rejeitar esses erros
+antes de chamar o backend. Respostas HTTP 400 do backend devem preservar a
+mensagem de validação para o cliente, em vez de aparecerem como erro genérico
+de operação indisponível.
 
 ## Criação com Bearer e escolha do profissional
 
@@ -437,6 +453,10 @@ somente o nginx publica o MCP por HTTPS.
   cancelamento da elicitação ou ausência de suporte falham sem alterar a
   agenda; o teste verifica também que o estado de continuação não aparece
   como argumento de negócio publicado pela tool.
+- `meus_agendamentos` rejeita antes da chamada interna datas com horário/fuso,
+  intervalos invertidos ou maiores que 31 dias, página negativa e tamanho fora
+  de 1..100. Quando o backend devolve HTTP 400, o cliente recebe a mensagem
+  de validação específica, e não o erro genérico de operação indisponível.
 - Dois clientes com Bearers distintos não veem, cancelam nem reagendam dados
   um do outro, mesmo conhecendo IDs. Perfil diferente, conta bloqueada ou
   desativada e consentimento revogado perdem acesso. Parâmetros extras de

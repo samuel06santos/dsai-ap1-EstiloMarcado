@@ -1,10 +1,13 @@
 """Contrato estático das tools, independente da disponibilidade do servidor remoto."""
 
 import ast
+import base64
 import json
 import pathlib
+from datetime import date
 import hashlib
 import hmac
+import time
 import uuid
 import tomllib
 import unittest
@@ -61,26 +64,49 @@ class McpContractTest(unittest.TestCase):
     def test_confirmation_nonce_is_bound_to_intent_and_bearer(self):
         tree = ast.parse((ROOT / "src/mcp/server.py").read_text(encoding="utf-8"))
         helpers = [node for node in tree.body if isinstance(node, ast.FunctionDef)
-                   and node.name == "_confirmacao_nonce"]
-        namespace = {"hashlib": hashlib, "hmac": hmac, "json": json, "uuid": uuid,
-                     "SERVICE_KEY": "test-key", "Context": object}
+                   and node.name in {"_assinar_intencao", "_validar_intencao"}]
+        namespace = {"base64": base64, "hashlib": hashlib, "hmac": hmac,
+                     "json": json, "time": time, "uuid": uuid, "SERVICE_KEY": "test-key"}
         exec(compile(ast.Module(body=helpers, type_ignores=[]), "server.py", "exec"), namespace)
-        class Context:
-            request_state = "state-from-mcp"
+        state = namespace["_assinar_intencao"]("criar|1|2|2026-10-20T09:00", "Bearer um")
+        self.assertRegex(namespace["_validar_intencao"](state, "criar|1|2|2026-10-20T09:00",
+                                                         "Bearer um"), r"^[0-9a-f-]{36}$")
+        with self.assertRaises(ValueError):
+            namespace["_validar_intencao"](state, "criar|1|2|2026-10-20T09:15", "Bearer um")
+        with self.assertRaises(ValueError):
+            namespace["_validar_intencao"](state, "criar|1|2|2026-10-20T09:00", "Bearer outro")
 
-        nonce = namespace["_confirmacao_nonce"](Context(), "criar|1|2|2026-10-20T09:00", "Bearer um")
-        self.assertRegex(nonce, r"^[0-9a-f-]{36}$")
-        self.assertNotEqual(nonce, namespace["_confirmacao_nonce"](
-            Context(), "criar|1|2|2026-10-20T09:15", "Bearer um"))
-        self.assertNotEqual(nonce, namespace["_confirmacao_nonce"](
-            Context(), "criar|1|2|2026-10-20T09:00", "Bearer outro"))
-
-    def test_confirmation_uses_era_portable_resolver(self):
+    def test_confirmation_is_mrtr_and_not_a_tool_argument(self):
+        tree = ast.parse((ROOT / "src/mcp/server.py").read_text(encoding="utf-8"))
         source = (ROOT / "src/mcp/server.py").read_text(encoding="utf-8")
-        self.assertIn("from mcp.server.mcpserver import Elicit, Resolve", source)
-        self.assertIn("Annotated[Confirmacao, Resolve(_confirmar_criacao)]", source)
+        self.assertIn("InputRequiredResult", source)
+        self.assertIn('input_requests={"confirmacao": ElicitRequest(params=params)}', source)
+        self.assertNotIn("Resolve(", source)
+        self.assertNotIn("Annotated", source)
+        found = {node.name: node for node in tree.body if isinstance(node, ast.AsyncFunctionDef)
+                 and node.name in WRITES}
+        for name, node in found.items():
+            self.assertNotIn("confirmacao", {arg.arg for arg in node.args.args}, name)
         self.assertIn('transport="streamable-http"', source)
         self.assertIn("stateless_http=False", source)
+
+    def test_bad_backend_request_preserves_validation_message(self):
+        source = (ROOT / "src/mcp/server.py").read_text(encoding="utf-8")
+        self.assertIn("if response.status_code == 400:", source)
+        self.assertIn('payload.get("mensagem")', source)
+
+    def test_agendamentos_period_is_limited_to_31_days_and_date_only(self):
+        tree = ast.parse((ROOT / "src/mcp/server.py").read_text(encoding="utf-8"))
+        helper = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                      and node.name == "_periodo_agendamentos")
+        namespace = {"date": date}
+        exec(compile(ast.Module(body=[helper], type_ignores=[]), "server.py", "exec"), namespace)
+        self.assertEqual((date(2026, 10, 20), date(2026, 10, 31)),
+                         namespace["_periodo_agendamentos"]("2026-10-20", "2026-10-31", 0, 50))
+        with self.assertRaises(ValueError):
+            namespace["_periodo_agendamentos"]("2026-10-20", "2026-11-20", 0, 50)
+        with self.assertRaises(ValueError):
+            namespace["_periodo_agendamentos"]("2026-10-20T00:00:00", "2026-10-21", 0, 50)
 
     def test_private_modern_call_gets_transport_challenge(self):
         tree = ast.parse((ROOT / "src/mcp/server.py").read_text(encoding="utf-8"))

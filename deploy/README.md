@@ -345,14 +345,22 @@ respectivamente, para que a chave montada seja legível somente pelo backend.
 O agente lê `.mcp.json` da raiz. As sete consultas estão em `allow` e as três
 alterações em `ask` em `.claude/settings.json`. A aprovação do cliente MCP é
 necessária em cada intenção de escrita. Além da regra `ask`, as tools pedem
-confirmação interativa via resolver era-portável do FastMCP. Clientes modernos
-recebem uma resposta intermediária e retomam a chamada com o estado de
-continuação; clientes legados usam o canal de elicitação da sessão. O serviço
-usa Streamable HTTP stateful (`stateless_http=false` e `json_response=false`)
-para manter compatibilidade com os dois protocolos. Se o cliente não suportar
-elicitação, a operação falha sem alterar a agenda. O nonce da escrita é
-derivado por HMAC da intenção, do Bearer e do estado MCP; cancelamento e
-reagendamento consomem um nonce UUID de uso único no PostgreSQL.
+confirmação interativa nativa do FastMCP, sem publicar `confirmacao` como
+argumento das tools. Clientes modernos recebem `InputRequiredResult` com uma
+pergunta estruturada e retomam a chamada com `request_state`; clientes legados
+usam `ctx.elicit()` com timeout de 30 segundos. Se o cliente não suportar
+elicitação, a operação falha sem alterar a agenda. O serviço usa Streamable
+HTTP stateful (`stateless_http=false` e `json_response=false`) para manter
+compatibilidade com os dois protocolos. O nonce da escrita é derivado por
+HMAC da intenção e do Bearer dentro do `request_state`, que expira em cinco
+minutos; cancelamento e reagendamento extraem esse nonce e consomem-no uma
+única vez no PostgreSQL.
+
+`meus_agendamentos` aceita somente datas `AAAA-MM-DD`, em períodos de no máximo
+31 dias, com página iniciando em zero e tamanho entre 1 e 100. O MCP rejeita
+parâmetros inválidos antes da chamada interna e repassa a mensagem de
+validação do backend para evitar o diagnóstico genérico `Operação indisponível`
+em erros HTTP 400.
 
 OpenCode usa `opencode.json` e Codex usa `.codex/config.toml` em projeto
 confiável; ambos estão versionados com a mesma URL e aprovação nas escritas.
