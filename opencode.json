@@ -4,6 +4,7 @@
     "estilo_marcado": {
       "type": "remote",
       "url": "https://estilomarcado.samuelsantos.qzz.io/mcp",
+      "protocol": "auto",
       "enabled": true
     }
   },
@@ -12,6 +13,9 @@
     "estilo_marcado_listar_filiais": "allow",
     "estilo_marcado_listar_servicos": "allow",
     "estilo_marcado_consultar_horarios": "allow",
+    "estilo_marcado_criar_agendamento": "ask",
+    "estilo_marcado_cancelar_agendamento": "ask",
+    "estilo_marcado_reagendar_agendamento": "ask",
     "estilo_marcado_meus_agendamentos": "allow",
     "estilo_marcado_detalhar_agendamento": "allow",
     "estilo_marcado_horarios_para_reagendar": "allow",
