@@ -220,6 +220,25 @@ modelo e um simples argumento booleano de confirmação não substituem a
 decisão do usuário. A confirmação no checkout web é adicional para o fluxo
 anônimo.
 
+A implementação deve usar o mecanismo era-portável do FastMCP para essa
+confirmação: um resolver `Resolve` que retorna `Elicit` com um modelo
+estruturado de aprovação. O campo de aprovação é injetado pelo servidor e não
+é publicado como argumento de negócio da tool. Em clientes que negociam o
+protocolo moderno, o FastMCP devolve a pergunta em uma resposta intermediária
+e retoma a mesma intenção com `request_state` e a resposta do usuário; em
+clientes legados, usa a elicitação no canal de retorno da sessão. O servidor
+não deve montar manualmente `InputRequiredResult` nem depender de uma chamada
+direta a `ctx.elicit()` dentro do corpo das tools de escrita para cobrir os
+dois protocolos.
+
+O transporte Streamable HTTP do serviço deve permanecer stateful, com resposta
+não-JSON (`stateless_http=false` e `json_response=false`), para conservar o
+canal necessário aos clientes legados. A configuração do servidor não pode
+exigir que cada usuário remoto edite um JSON do projeto. O nonce enviado ao
+backend é derivado por HMAC da intenção, do Bearer e do estado de continuação
+do MCP; cancelamento e reagendamento continuam usando nonce UUID de uso único
+consumido pelo backend.
+
 ## Criação com Bearer e escolha do profissional
 
 `criar_agendamento` não recebe profissional. Na mesma transação, o backend
@@ -412,6 +431,12 @@ somente o nginx publica o MCP por HTTPS.
   `criar_agendamento` anônimo. Após a autorização de conta necessária, uma
   leitura não pede aprovação de execução; cada escrita pede, e a recusa não
   causa efeito. Nenhum arquivo versionado contém token.
+- Um cliente MCP moderno e um cliente legado recebem a revisão interativa das
+  três tools de escrita, a chamada não fica aguardando indefinidamente, e a
+  resposta aprovada retoma a mesma intenção sem duplicar a escrita. Recusa,
+  cancelamento da elicitação ou ausência de suporte falham sem alterar a
+  agenda; o teste verifica também que o estado de continuação não aparece
+  como argumento de negócio publicado pela tool.
 - Dois clientes com Bearers distintos não veem, cancelam nem reagendam dados
   um do outro, mesmo conhecendo IDs. Perfil diferente, conta bloqueada ou
   desativada e consentimento revogado perdem acesso. Parâmetros extras de

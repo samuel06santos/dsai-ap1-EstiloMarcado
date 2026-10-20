@@ -345,10 +345,14 @@ respectivamente, para que a chave montada seja legível somente pelo backend.
 O agente lê `.mcp.json` da raiz. As sete consultas estão em `allow` e as três
 alterações em `ask` em `.claude/settings.json`. A aprovação do cliente MCP é
 necessária em cada intenção de escrita. Além da regra `ask`, as tools pedem
-confirmação interativa via elicitação MCP; se o cliente não suportar a troca,
-a operação falha sem alterar a agenda. A resposta fica vinculada por cinco
-minutos aos dados revisados e ao Bearer da chamada. Cancelamento e reagendamento
-consomem um nonce de uso único no PostgreSQL.
+confirmação interativa via resolver era-portável do FastMCP. Clientes modernos
+recebem uma resposta intermediária e retomam a chamada com o estado de
+continuação; clientes legados usam o canal de elicitação da sessão. O serviço
+usa Streamable HTTP stateful (`stateless_http=false` e `json_response=false`)
+para manter compatibilidade com os dois protocolos. Se o cliente não suportar
+elicitação, a operação falha sem alterar a agenda. O nonce da escrita é
+derivado por HMAC da intenção, do Bearer e do estado MCP; cancelamento e
+reagendamento consomem um nonce UUID de uso único no PostgreSQL.
 
 OpenCode usa `opencode.json` e Codex usa `.codex/config.toml` em projeto
 confiável; ambos estão versionados com a mesma URL e aprovação nas escritas.
