@@ -3,10 +3,8 @@
 import ast
 import json
 import pathlib
-import base64
 import hashlib
 import hmac
-import time
 import uuid
 import tomllib
 import unittest
@@ -60,20 +58,29 @@ class McpContractTest(unittest.TestCase):
         self.assertTrue(all(item["approval_mode"] == "approve"
                             for item in servidor["tools"].values()))
 
-    def test_confirmation_state_is_bound_to_intent_and_bearer(self):
+    def test_confirmation_nonce_is_bound_to_intent_and_bearer(self):
         tree = ast.parse((ROOT / "src/mcp/server.py").read_text(encoding="utf-8"))
         helpers = [node for node in tree.body if isinstance(node, ast.FunctionDef)
-                   and node.name in {"_assinar_intencao", "_validar_intencao"}]
-        namespace = {"base64": base64, "hashlib": hashlib, "hmac": hmac, "json": json,
-                     "time": time, "uuid": uuid, "SERVICE_KEY": "test-key"}
+                   and node.name == "_confirmacao_nonce"]
+        namespace = {"hashlib": hashlib, "hmac": hmac, "json": json, "uuid": uuid,
+                     "SERVICE_KEY": "test-key", "Context": object}
         exec(compile(ast.Module(body=helpers, type_ignores=[]), "server.py", "exec"), namespace)
-        state = namespace["_assinar_intencao"]("criar|1|2|2026-10-20T09:00", "Bearer um")
-        self.assertRegex(namespace["_validar_intencao"](state, "criar|1|2|2026-10-20T09:00",
-                                                         "Bearer um"), r"^[0-9a-f-]{36}$")
-        with self.assertRaises(ValueError):
-            namespace["_validar_intencao"](state, "criar|1|2|2026-10-20T09:15", "Bearer um")
-        with self.assertRaises(ValueError):
-            namespace["_validar_intencao"](state, "criar|1|2|2026-10-20T09:00", "Bearer outro")
+        class Context:
+            request_state = "state-from-mcp"
+
+        nonce = namespace["_confirmacao_nonce"](Context(), "criar|1|2|2026-10-20T09:00", "Bearer um")
+        self.assertRegex(nonce, r"^[0-9a-f-]{36}$")
+        self.assertNotEqual(nonce, namespace["_confirmacao_nonce"](
+            Context(), "criar|1|2|2026-10-20T09:15", "Bearer um"))
+        self.assertNotEqual(nonce, namespace["_confirmacao_nonce"](
+            Context(), "criar|1|2|2026-10-20T09:00", "Bearer outro"))
+
+    def test_confirmation_uses_era_portable_resolver(self):
+        source = (ROOT / "src/mcp/server.py").read_text(encoding="utf-8")
+        self.assertIn("from mcp.server.mcpserver import Elicit, Resolve", source)
+        self.assertIn("Annotated[Confirmacao, Resolve(_confirmar_criacao)]", source)
+        self.assertIn('transport="streamable-http"', source)
+        self.assertIn("stateless_http=False", source)
 
     def test_private_modern_call_gets_transport_challenge(self):
         tree = ast.parse((ROOT / "src/mcp/server.py").read_text(encoding="utf-8"))
